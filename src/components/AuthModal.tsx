@@ -19,7 +19,7 @@ export function AuthModal() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<'google' | 'discord' | null>(null);
+  const [oauthLoading, setOauthLoading] = useState<'google' | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -72,43 +72,17 @@ export function AuthModal() {
     };
   }, [isOpen, user]);
 
-  const getRedirectUrl = () => {
-    const url = window.location.origin;
-    return url.endsWith('/') ? url : `${url}/`;
-  };
-
   const handleGoogleLogin = async () => {
     try {
       setOauthLoading('google');
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { 
-          redirectTo: getRedirectUrl(),
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        },
+      const result = await lovable.auth.signInWithOAuth('google', {
+        redirect_uri: window.location.origin,
       });
-      if (error) throw error;
+      if (result.error) throw result.error;
+      if (result.redirected) return; // Browser is redirecting to Google
+      setOauthLoading(null);
     } catch (error: any) {
       toast.error('حدث خطأ أثناء الاتصال بجوجل: ' + error.message);
-      setOauthLoading(null);
-    }
-  };
-
-  const handleDiscordLogin = async () => {
-    try {
-      setOauthLoading('discord');
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'discord',
-        options: { 
-          redirectTo: getRedirectUrl() 
-        },
-      });
-      if (error) throw error;
-    } catch (error: any) {
-      toast.error('حدث خطأ أثناء الاتصال بديسكورد: ' + error.message);
       setOauthLoading(null);
     }
   };
