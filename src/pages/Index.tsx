@@ -190,7 +190,7 @@ export default function Index() {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
 
   const [apiKey, setApiKey] = useState<string>(() => {
-    return localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY || '';
+    return localStorage.getItem('gemini_api_key') || import.meta.env['VITE_GEMINI_API_KEY'] || '';
   });
 
   const [selectedModel, setSelectedModel] = useState<string>(() => {
@@ -434,8 +434,8 @@ export default function Index() {
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= items.length) return;
 
-    const temp = items[index];
-    items[index] = items[targetIndex];
+    const temp = items[index]!;
+    items[index] = items[targetIndex]!;
     items[targetIndex] = temp;
 
     setResultsMap((prev) => ({ ...prev, [activeImage.id]: items }));
@@ -475,11 +475,11 @@ export default function Index() {
 
     if (scope === 'current' && activeImage) {
       if (newMap[activeImage.id]) {
-        newMap[activeImage.id] = processList(newMap[activeImage.id]);
+        newMap[activeImage.id] = processList(newMap[activeImage.id]!);
       }
     } else {
       Object.keys(newMap).forEach((imgId) => {
-        newMap[imgId] = processList(newMap[imgId]);
+        newMap[imgId] = processList(newMap[imgId]!);
       });
     }
 
@@ -498,7 +498,7 @@ export default function Index() {
       const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (match) {
         try {
-          return JSON.parse(match[1]);
+          return JSON.parse(match[1]!);
         } catch {
           // ignore
         }
@@ -677,9 +677,9 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
       setCurrentProcessingMsg(lang === 'ar' ? `جاري معالجة الصورة (${i + 1} من ${images.length})...` : `Processing image (${i + 1} of ${images.length})...`);
-      const { data: res, error } = await processGeminiRequest(img, ocrOnly);
+      const { data: res, error } = await processGeminiRequest(img!, ocrOnly);
       if (res && res.length > 0) {
-        newMap[img.id] = res;
+        newMap[img!.id] = res;
         successCount++;
       } else if (error) {
         lastError = error;
@@ -868,7 +868,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
                         value={tag.prefix}
                         onChange={(e) => {
                           const updated = [...tags];
-                          updated[i].prefix = e.target.value;
+                          updated[i]!.prefix = e.target.value;
                           setTags(updated);
                         }}
                         className="h-7 text-xs w-16"
@@ -878,7 +878,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
                         value={tag.suffix}
                         onChange={(e) => {
                           const updated = [...tags];
-                          updated[i].suffix = e.target.value;
+                          updated[i]!.suffix = e.target.value;
                           setTags(updated);
                         }}
                         className="h-7 text-xs w-16"
