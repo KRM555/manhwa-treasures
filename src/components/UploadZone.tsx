@@ -87,7 +87,7 @@ export function UploadZone({
 
         const selectedEntries = entries.slice(0, 10);
         for (const entryName of selectedEntries) {
-          const fileData = await zipContent.files[entryName].async('base64');
+          const fileData = await zipContent.files[entryName]!.async('base64');
           const ext = entryName.split('.').pop()?.toLowerCase() || 'jpeg';
           const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
           extractedImages.push({
@@ -99,7 +99,7 @@ export function UploadZone({
         if (onMultipleImagesSelected) {
           onMultipleImagesSelected(extractedImages);
         } else if (extractedImages.length > 0) {
-          onImageSelected(extractedImages[0].url, extractedImages[0].name);
+          onImageSelected(extractedImages[0]!.url, extractedImages[0]!.name);
         }
         toast.success(
           lang === 'ar'
@@ -116,7 +116,7 @@ export function UploadZone({
     if (imageFiles.length === 0) return;
 
     if (imageFiles.length === 1) {
-      const file = imageFiles[0];
+      const file = imageFiles[0]!;
       const reader = new FileReader();
       reader.onload = (e) => {
         if (e.target?.result) {
