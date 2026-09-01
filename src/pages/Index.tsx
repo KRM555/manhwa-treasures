@@ -61,6 +61,7 @@ const DEFAULT_TAGS: TagRule[] = [
 
 const AVAILABLE_MODELS = [
   { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash (الأسرع والأحدث)' },
+  { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash (سريع ومتوازن)' },
   { id: 'gemini-3.6-pro', label: 'Gemini 3.6 Pro (أعلى جودة وسياق)' },
   { id: 'custom', label: 'نموذج مخصص (Custom Model)...' }
 ];
@@ -552,6 +553,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
     const modelsToTry = [
       primaryModel,
       'gemini-3.7-flash',
+      'gemini-3.6-flash',
       'gemini-3.6-pro',
     ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
