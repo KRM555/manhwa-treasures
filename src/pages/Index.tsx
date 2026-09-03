@@ -65,8 +65,13 @@ export default function Index() {
   const { t, lang, toggleLang } = useI18n();
 
   const AVAILABLE_MODELS = [
-    { id: 'gemini-3.6-flash', label: `Gemini 3.6 Flash (${t.modelBalanced})` },
+    { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
   ];
+
+  // Map display model IDs to real Google Gemini API model IDs (with fallback chain)
+  const MODEL_API_MAP: Record<string, string[]> = {
+    'gemini-3.6-flash': ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'],
+  };
 
   const [images, setImages] = useState<ImageItem[]>(() => {
     const saved = localStorage.getItem('manga_studio_images');
@@ -167,7 +172,7 @@ export default function Index() {
   // Strip spaces and surrounding quotes cleanly
   const cleanApiKey = apiKey.replace(/[\s\r\n\t"']/g, '').trim();
 
-  const getEffectiveModel = () => 'gemini-3.6-flash';
+  const getEffectiveModel = () => 'Gemini 3.6 Flash';
 
   const handleTestApiKey = async () => {
     if (!cleanApiKey) {
@@ -453,68 +458,98 @@ ${refContextPrompt}
 Return ONLY a valid JSON array of objects with keys: id, originalText, translatedText, category, topPercent.
 The category field must be one of: (${tagValues}).`;
 
-    const modelsToTry = ['gemini-3.6-flash'];
+    const apiModelIds = MODEL_API_MAP[selectedModel] || MODEL_API_MAP['gemini-3.6-flash']!;
+    const RETRYABLE_STATUS = new Set([429, 500, 503]);
+    const MAX_RETRIES = 2;
 
     let lastErrorDetails = '';
+    let attemptedFallback = false;
 
-    for (const model of modelsToTry) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${cleanApiKey}`;
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { inlineData: { mimeType, data: base64Data } },
-                  { text: promptText },
-                ],
-              },
-            ],
-            generationConfig: {
-              temperature: 0.1,
-              responseMimeType: 'application/json',
+    for (let modelIdx = 0; modelIdx < apiModelIds.length; modelIdx++) {
+      const apiModel = apiModelIds[modelIdx]!;
+
+      if (modelIdx > 0) {
+        toast.info(t.fallbackModel(apiModel), { duration: 4000 });
+        attemptedFallback = true;
+      }
+
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+          toast.info(t.retryingModel(apiModel), { duration: 3000 });
+          await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+        }
+
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${cleanApiKey}`;
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
             },
-          }),
-        });
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    { inlineData: { mimeType, data: base64Data } },
+                    { text: promptText },
+                  ],
+                },
+              ],
+              generationConfig: {
+                temperature: 0.1,
+                responseMimeType: 'application/json',
+              },
+            }),
+          });
 
-        if (!response.ok) {
-          const errBody = await response.json().catch(() => null);
-          const msg = errBody?.error?.message || `HTTP ${response.status} (${response.statusText})`;
-          lastErrorDetails = msg;
+          if (!response.ok) {
+            const errBody = await response.json().catch(() => null);
+            const msg = errBody?.error?.message || `HTTP ${response.status} (${response.statusText})`;
+            lastErrorDetails = msg;
 
-          if (response.status === 401 || response.status === 403) {
-            return { 
-              data: null, 
-              error: `[Google ${response.status}] ${msg}` 
-            };
+            if (response.status === 401 || response.status === 403) {
+              return {
+                data: null,
+                error: `[Google ${response.status}] ${msg}`
+              };
+            }
+
+            if (RETRYABLE_STATUS.has(response.status) && attempt < MAX_RETRIES) {
+              continue;
+            }
+            break;
           }
-          continue;
-        }
 
-        const data = await response.json();
-        const rawJsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          const data = await response.json();
+          const rawJsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-        if (rawJsonText) {
-          const parsedItems = parseJsonFromResponse(rawJsonText);
-          if (parsedItems && Array.isArray(parsedItems)) {
-            const formatted = parsedItems.map((item, idx) => ({
-              ...item,
-              id: item.id || `item_${idx}_${Date.now()}`,
-              topPercent: item.topPercent ?? Math.min(95, Math.max(5, (idx + 1) * 15)),
-              translatedText: ocrOnly ? item.originalText : item.translatedText,
-            }));
-            return { data: formatted };
+          if (rawJsonText) {
+            const parsedItems = parseJsonFromResponse(rawJsonText);
+            if (parsedItems && Array.isArray(parsedItems)) {
+              const formatted = parsedItems.map((item, idx) => ({
+                ...item,
+                id: item.id || `item_${idx}_${Date.now()}`,
+                topPercent: item.topPercent ?? Math.min(95, Math.max(5, (idx + 1) * 15)),
+                translatedText: ocrOnly ? item.originalText : item.translatedText,
+              }));
+              return { data: formatted };
+            }
+          }
+
+          lastErrorDetails = 'Empty or invalid response from model';
+          break;
+        } catch (err: any) {
+          lastErrorDetails = err?.message || 'Network fetch error';
+          if (attempt < MAX_RETRIES) {
+            continue;
           }
         }
-      } catch (err: any) {
-        lastErrorDetails = err?.message || 'Network fetch error';
       }
     }
 
+    if (attemptedFallback) {
+      return { data: null, error: t.allModelsOverloaded };
+    }
     return { data: null, error: lastErrorDetails || 'Failed to connect to Google Gemini' };
   };
 
