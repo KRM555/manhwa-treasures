@@ -123,6 +123,7 @@ export default function Index() {
   const [referenceText, setReferenceText] = useState<string>('');
   const [referenceFileName, setReferenceFileName] = useState<string>('');
   const [showKeyHelpModal, setShowKeyHelpModal] = useState<boolean>(false);
+  const [reAnalysisNote, setReAnalysisNote] = useState<string>('');
 
   useEffect(() => {
     localStorage.setItem('gemini_selected_model', selectedModel);
@@ -400,7 +401,7 @@ export default function Index() {
     return null;
   };
 
-  const processGeminiRequest = async (targetImg: ImageItem, ocrOnly = false): Promise<{ data: ExtractedText[] | null; error?: string }> => {
+  const processGeminiRequest = async (targetImg: ImageItem, ocrOnly = false, reAnalysisHint?: string): Promise<{ data: ExtractedText[] | null; error?: string }> => {
     if (!cleanApiKey) {
       return { data: null, error: t.emptyApiKey };
     }
@@ -415,6 +416,10 @@ export default function Index() {
 
     const refContextPrompt = referenceText
       ? `\nIMPORTANT CONTEXT: Use the following text from a previous chapter as a reference to maintain consistent tone, style, and character naming:\n"""\n${referenceText.substring(0, 5000)}\n"""\n`
+      : '';
+
+    const reAnalysisPrompt = reAnalysisHint?.trim()
+      ? `\nCRITICAL — RE-ANALYSIS INSTRUCTIONS FROM THE USER:\nThe user reports that some text regions were missed or incorrectly extracted in a previous analysis.\nPay special attention to the following user notes and make sure to explicitly scan and extract the requested areas:\n"""\n${reAnalysisHint.trim()}\n"""\nRe-examine the entire image carefully, focusing on the areas the user mentioned. Include ALL text blocks, especially any that were previously missed.\n`
       : '';
 
     const tagDefinitions = tags.map(t => `- value: "${t.value}" | label: "${t.label}" | prefix: "${t.prefix}" | suffix: "${t.suffix}"`).join('\n');
@@ -434,12 +439,14 @@ ${tagDefinitions}`;
 Extract all original texts top to bottom in natural reading order.
 Estimate topPercent (0 to 100) position of each bubble on the page.
 ${tagInstructions}
+${reAnalysisPrompt}
 Return ONLY a valid JSON array of objects with keys: id, originalText, translatedText, category, topPercent.
 The category field must be one of: (${tagValues}).`
       : `You are an expert manga and webtoon OCR and translator.
 Extract all texts from the image in reading order (top to bottom).
 Estimate topPercent (0 to 100) relative vertical position on the page for each text bubble.
 ${tagInstructions}
+${reAnalysisPrompt}
 Translate all extracted texts to ${config.targetLanguage === 'ar' ? 'Arabic (العربية)' : 'English'}.
 ${glossaryPrompt}
 ${refContextPrompt}
@@ -525,7 +532,7 @@ The category field must be one of: (${tagValues}).`;
     setIsAnalyzing(true);
     setCurrentProcessingMsg(t.analyzingWith(getEffectiveModel()));
 
-    const { data: res, error } = await processGeminiRequest(activeImage, ocrOnly);
+    const { data: res, error } = await processGeminiRequest(activeImage, ocrOnly, reAnalysisNote);
     if (res && res.length > 0) {
       setResultsMap((prev) => ({ ...prev, [activeImage.id]: res }));
       toast.success(t.successExtract);
@@ -1039,10 +1046,23 @@ The category field must be one of: (${tagValues}).`;
               </Button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="ghost" onClick={() => handleAnalyzeCurrent(false)} disabled={isAnalyzing} className="gap-2 text-xs font-bold rounded-xl">
-                <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzing ? 'animate-spin' : ''}`} /> {t.reAnalyze}
-              </Button>
+            <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+              <Label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
+                <RefreshCw className="w-3 h-3 text-orange-500" />
+                {t.reAnalysisLabel}
+              </Label>
+              <div className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-xl border border-border/60">
+                <Input
+                  placeholder={t.reAnalysisPlaceholder}
+                  value={reAnalysisNote}
+                  onChange={(e) => setReAnalysisNote(e.target.value)}
+                  className="h-7 text-xs w-48 bg-background"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="ghost" onClick={() => handleAnalyzeCurrent(false)} disabled={isAnalyzing} className="gap-2 text-xs font-bold rounded-xl">
+                  <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzing ? 'animate-spin' : ''}`} /> {t.reAnalyze}
+                </Button>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1067,6 +1087,7 @@ The category field must be one of: (${tagValues}).`;
                   <DropdownMenuItem onClick={() => handleExportText('all', 'translated')} className="text-xs cursor-pointer font-medium">{t.exportAllPages}</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              </div>
             </div>
           </div>
 

@@ -62,6 +62,8 @@ export const UI_TEXT = {
     tagsResetDone: 'تمت استعادة العلامات الافتراضية',
     tagDeleteLastError: 'يجب الإبقاء على علامة واحدة على الأقل',
     tagHint: 'هذه العلامات تُرسل إلى Gemini في كل تحليل، ويتم التصنيف باستخدامها فقط.',
+    reAnalysisLabel: 'نص مفقود / تعليمات إعادة التحليل',
+    reAnalysisPlaceholder: 'اكتب ملاحظاتك عن المناطق غير المستخرجة، مثال: هذا الجزء غير مترجم',
     // Glossary
     glossaryTitle: 'قاموس المصطلحات والأسماء',
     origTerm: 'الاسم/المصطلح الأصلي',
@@ -232,6 +234,8 @@ export const UI_TEXT = {
     tagsResetDone: 'Default tags restored',
     tagDeleteLastError: 'At least one tag must remain',
     tagHint: 'These tags are sent to Gemini on every analysis, and classification uses only them.',
+    reAnalysisLabel: 'Missing Text / Re-analysis Instructions',
+    reAnalysisPlaceholder: 'Write notes about missed text regions, e.g.: this part is not translated',
     glossaryTitle: 'Character & Term Glossary',
     origTerm: 'Original Name/Term',
     transTerm: 'Approved Translation',
