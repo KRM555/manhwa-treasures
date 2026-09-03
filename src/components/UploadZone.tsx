@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import JSZip from 'jszip';
+import { useI18n } from '@/lib/language';
 
 interface UploadZoneProps {
   imagePreview: string | null;
@@ -18,39 +19,7 @@ interface UploadZoneProps {
   onClearImage: () => void;
   onConfigChange: (updated: Partial<TranslationConfig>) => void;
   onAnalyze: () => void;
-  lang?: 'ar' | 'en';
 }
-
-const UI_TEXT = {
-  ar: {
-    dropTitle: 'اسحب وأسقط صفحات المانجا / الويب تون هنا',
-    dropSubtitle: 'يدعم رفع حتى 10 صور دفعة واحدة أو ملف مضغوط ZIP (PNG, JPG, WEBP)',
-    uploadBtn: 'اختر صوراً أو ملف ZIP',
-    controlsTitle: 'إعدادات الترجمة والاستخراج',
-    targetLang: 'اللغة المستهدفة للترجمة',
-    sfxLabel: 'استخراج المؤثرات الصوتية (SFX)',
-    sfxSub: 'ترجمة المؤثرات الجانبية مثل (Boom, Splash) بجانب نصوص الحوارات',
-    verticalLabel: 'كشف النص العمودي وتحديد اتجاه القراءة تلقائياً',
-    verticalSub: 'فحص اتجاه قراءة المانجا اليابانية (من اليمين لليسار)',
-    analyzeBtn: 'تحليل واستخراج النصوص',
-    analyzingBtn: 'جاري المعالجة بواسطة Gemini...',
-    infoNote: 'يتم المعالجة والتعرف الضوئي (OCR) والترجمة في خطوة واحدة ذكية.',
-  },
-  en: {
-    dropTitle: 'Drag & Drop your Manga / Manhwa pages',
-    dropSubtitle: 'Supports uploading up to 10 images or a ZIP archive (PNG, JPG, WEBP, ZIP)',
-    uploadBtn: 'Upload Images or ZIP',
-    controlsTitle: 'Translation & Extraction Controls',
-    targetLang: 'TARGET LANGUAGE',
-    sfxLabel: 'Extract Sound Effects (SFX)',
-    sfxSub: 'Translates onomatopoeia alongside speech bubbles',
-    verticalLabel: 'Vertical Text & Right-to-Left Auto Detect',
-    verticalSub: 'Automatically scans vertical manga reading flow',
-    analyzeBtn: 'Analyze Image',
-    analyzingBtn: 'Analyzing with Gemini...',
-    infoNote: 'Processes OCR, Text Inpainting & Translation in a single step.',
-  },
-};
 
 export function UploadZone({
   imagePreview,
@@ -60,10 +29,9 @@ export function UploadZone({
   onMultipleImagesSelected,
   onConfigChange,
   onAnalyze,
-  lang = 'ar',
 }: UploadZoneProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const t = UI_TEXT[lang];
+  const { t } = useI18n();
 
   const processFiles = async (files: FileList | File[]) => {
     const fileList = Array.from(files);
@@ -71,7 +39,7 @@ export function UploadZone({
 
     if (zipFile) {
       try {
-        toast.info(lang === 'ar' ? 'جاري فك الملف المضغوط...' : 'Extracting ZIP file...');
+        toast.info(t.zipExtracting);
         const zip = new JSZip();
         const zipContent = await zip.loadAsync(zipFile);
         const extractedImages: { url: string; name: string }[] = [];
@@ -81,7 +49,7 @@ export function UploadZone({
         );
 
         if (entries.length === 0) {
-          toast.error(lang === 'ar' ? 'لم يتم العثور على صور داخل ZIP' : 'No images found inside ZIP');
+          toast.error(t.zipNoImages);
           return;
         }
 
@@ -101,13 +69,9 @@ export function UploadZone({
         } else if (extractedImages.length > 0) {
           onImageSelected(extractedImages[0]!.url, extractedImages[0]!.name);
         }
-        toast.success(
-          lang === 'ar'
-            ? `تم استخراج ${extractedImages.length} صور من الملف المضغوط!`
-            : `Extracted ${extractedImages.length} images from ZIP!`
-        );
+        toast.success(t.zipExtracted(extractedImages.length));
       } catch (err) {
-        toast.error(lang === 'ar' ? 'تعذر قراءة ملف ZIP' : 'Failed to read ZIP file');
+        toast.error(t.zipFailed);
       }
       return;
     }
@@ -206,8 +170,8 @@ export function UploadZone({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ar">العربية (Arabic)</SelectItem>
-                <SelectItem value="en">الإنجليزية (English)</SelectItem>
+                <SelectItem value="ar">{t.langArabic}</SelectItem>
+                <SelectItem value="en">{t.langEnglish}</SelectItem>
               </SelectContent>
             </Select>
           </div>
