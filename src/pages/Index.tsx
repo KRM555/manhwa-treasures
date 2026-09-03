@@ -65,10 +65,7 @@ export default function Index() {
   const { t, lang, toggleLang } = useI18n();
 
   const AVAILABLE_MODELS = [
-    { id: 'gemini-3.7-flash', label: `Gemini 3.7 Flash (${t.modelFastest})` },
     { id: 'gemini-3.6-flash', label: `Gemini 3.6 Flash (${t.modelBalanced})` },
-    { id: 'gemini-3.6-pro', label: `Gemini 3.6 Pro (${t.modelHighQuality})` },
-    { id: 'custom', label: t.customModel },
   ];
 
   const [images, setImages] = useState<ImageItem[]>(() => {
@@ -88,10 +85,7 @@ export default function Index() {
     return localStorage.getItem('gemini_api_key') || import.meta.env['VITE_GEMINI_API_KEY'] || '';
   });
 
-  const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return localStorage.getItem('gemini_selected_model') || 'gemini-3.7-flash';
-  });
-  const [customModelName, setCustomModelName] = useState<string>('');
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.6-flash');
 
   const [config, setConfig] = useState<TranslationConfig>({
     targetLanguage: 'ar',
@@ -172,12 +166,7 @@ export default function Index() {
   // Strip spaces and surrounding quotes cleanly
   const cleanApiKey = apiKey.replace(/[\s\r\n\t"']/g, '').trim();
 
-  const getEffectiveModel = () => {
-    if (selectedModel === 'custom' && customModelName.trim()) {
-      return customModelName.trim();
-    }
-    return selectedModel || 'gemini-3.7-flash';
-  };
+  const getEffectiveModel = () => 'gemini-3.6-flash';
 
   const handleTestApiKey = async () => {
     if (!cleanApiKey) {
@@ -428,28 +417,36 @@ export default function Index() {
       ? `\nIMPORTANT CONTEXT: Use the following text from a previous chapter as a reference to maintain consistent tone, style, and character naming:\n"""\n${referenceText.substring(0, 5000)}\n"""\n`
       : '';
 
+    const tagDefinitions = tags.map(t => `- value: "${t.value}" | label: "${t.label}" | prefix: "${t.prefix}" | suffix: "${t.suffix}"`).join('\n');
+    const tagValues = tags.map(t => t.value).join(', ');
+
+    const tagInstructions = `IMPORTANT — TAG CLASSIFICATION RULES:
+You must classify each extracted text block into one of the following currently active custom tags.
+Do NOT use any default or built-in categories. Use ONLY the tags listed below.
+If a block does not clearly fit any tag, use the last tag in the list as a fallback.
+The "category" field in your JSON output must be exactly the value string (not the label).
+
+Active tags (use only these):
+${tagDefinitions}`;
+
     const promptText = ocrOnly
       ? `You are an expert manga and webtoon OCR system.
 Extract all original texts top to bottom in natural reading order.
 Estimate topPercent (0 to 100) position of each bubble on the page.
-Categorize each block into one of: (${tags.map(t => t.value).join(', ')}).
-Return ONLY a valid JSON array of objects with keys: id, originalText, translatedText, category, topPercent.`
+${tagInstructions}
+Return ONLY a valid JSON array of objects with keys: id, originalText, translatedText, category, topPercent.
+The category field must be one of: (${tagValues}).`
       : `You are an expert manga and webtoon OCR and translator.
 Extract all texts from the image in reading order (top to bottom).
 Estimate topPercent (0 to 100) relative vertical position on the page for each text bubble.
-Categorize each block into one of these types: (${tags.map(t => t.value).join(', ')}).
+${tagInstructions}
 Translate all extracted texts to ${config.targetLanguage === 'ar' ? 'Arabic (العربية)' : 'English'}.
 ${glossaryPrompt}
 ${refContextPrompt}
-Return ONLY a valid JSON array of objects with keys: id, originalText, translatedText, category, topPercent.`;
+Return ONLY a valid JSON array of objects with keys: id, originalText, translatedText, category, topPercent.
+The category field must be one of: (${tagValues}).`;
 
-    const primaryModel = getEffectiveModel();
-    const modelsToTry = [
-      primaryModel,
-      'gemini-3.7-flash',
-      'gemini-3.6-flash',
-      'gemini-3.6-pro',
-    ].filter((m, idx, arr) => arr.indexOf(m) === idx);
+    const modelsToTry = ['gemini-3.6-flash'];
 
     let lastErrorDetails = '';
 
@@ -678,14 +675,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
               </SelectContent>
             </Select>
 
-            {selectedModel === 'custom' && (
-              <Input
-                placeholder="gemini-3.7-flash..."
-                value={customModelName}
-                onChange={(e) => setCustomModelName(e.target.value)}
-                className="h-7 text-xs w-36 dir-ltr"
-              />
-            )}
+
           </div>
 
           {/* زر مشروع جديد */}
