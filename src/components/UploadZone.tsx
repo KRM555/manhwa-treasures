@@ -53,7 +53,7 @@ export function UploadZone({
           return;
         }
 
-        const selectedEntries = entries.slice(0, 10);
+        const selectedEntries = entries.slice(0, 15);
         for (const entryName of selectedEntries) {
           const fileData = await zipContent.files[entryName]!.async('base64');
           const ext = entryName.split('.').pop()?.toLowerCase() || 'jpeg';
@@ -76,7 +76,7 @@ export function UploadZone({
       return;
     }
 
-    const imageFiles = fileList.filter((f) => f.type.startsWith('image/')).slice(0, 10);
+    const imageFiles = fileList.filter((f) => f.type.startsWith('image/')).slice(0, 15);
     if (imageFiles.length === 0) return;
 
     if (imageFiles.length === 1) {
@@ -124,14 +124,32 @@ export function UploadZone({
         onDrop={handleDrop}
         className="p-8 sm:p-12 border-2 border-dashed border-border hover:border-orange-500/50 bg-card/50 transition-colors rounded-3xl text-center space-y-4"
       >
-        <div className="w-16 h-16 bg-orange-500/10 text-orange-500 rounded-2xl flex items-center justify-center mx-auto">
-          <Upload className="w-8 h-8" />
-        </div>
+        {imagePreview ? (
+          <div className="w-full max-w-md mx-auto space-y-4">
+            <div className="relative rounded-2xl overflow-hidden border border-border/60 shadow-md">
+              <img
+                src={imagePreview}
+                alt="Preview"
+                className="w-full h-auto max-h-[400px] object-contain bg-muted/20"
+              />
+            </div>
+            <div className="text-center">
+              <h2 className="text-base font-bold tracking-tight text-foreground">{t.dropTitle}</h2>
+              <p className="text-xs text-muted-foreground mt-1">{t.dropSubtitle}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="w-16 h-16 bg-orange-500/10 text-orange-500 rounded-2xl flex items-center justify-center mx-auto">
+            <Upload className="w-8 h-8" />
+          </div>
+        )}
 
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground">{t.dropTitle}</h2>
-          <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">{t.dropSubtitle}</p>
-        </div>
+        {!imagePreview && (
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-foreground">{t.dropTitle}</h2>
+            <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">{t.dropSubtitle}</p>
+          </div>
+        )}
 
         <input
           ref={fileInputRef}

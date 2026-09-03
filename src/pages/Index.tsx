@@ -198,7 +198,7 @@ export default function Index() {
   };
 
   const handleImageSelected = (url: string, name: string) => {
-    if (images.length >= 10) {
+    if (images.length >= 15) {
       toast.error(t.multiImageLimit);
       return;
     }
@@ -213,7 +213,7 @@ export default function Index() {
       url: img.url,
       name: img.name,
     }));
-    setImages((prev) => [...prev, ...formatted].slice(0, 10));
+    setImages((prev) => [...prev, ...formatted].slice(0, 15));
     setActiveImageIndex(0);
   };
 
@@ -746,6 +746,9 @@ The category field must be one of: (${tagValues}).`;
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-2">
+                <p className="text-[11px] text-muted-foreground bg-muted/30 p-3 rounded-lg border border-border/50">
+                  {t.tagHint}
+                </p>
                 <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
                   {tags.map((tag, i) => (
                     <div key={tag.value || i} className="flex items-center gap-1.5 bg-muted/40 p-2 rounded-lg text-xs">
@@ -870,26 +873,26 @@ The category field must be one of: (${tagValues}).`;
 
       {/* نافذة المساعدة للحصول على مفتاح Gemini الصحيح */}
       <Dialog open={showKeyHelpModal} onOpenChange={setShowKeyHelpModal}>
-        <DialogContent className="sm:max-w-lg rounded-2xl text-right dir-rtl">
+        <DialogContent className="sm:max-w-lg rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2 text-orange-600">
               <KeyRound className="w-5 h-5" />
-              <span>الحصول على مفتاح Google Gemini الصحيح مجاناً</span>
+              <span>{t.keyHelpTitle}</span>
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 text-sm text-muted-foreground mt-2">
             <p>
-              لتشغيل الترجمة والاستخراج بالذكاء الاصطناعي، يرجى إنشاء مفتاح من <strong>Google AI Studio</strong> الرسمي:
+              {t.keyHelpIntro}
             </p>
             <div className="bg-muted/40 p-3 rounded-xl border border-border/60 space-y-2 text-xs text-foreground">
-              <p>✅ <strong>المفتاح الصحيح:</strong> يبدأ دائماً بـ <code className="text-orange-500 font-mono font-bold">AIzaSy...</code></p>
-              <p>❌ <strong>مفاتيح أخرى:</strong> المفاتيح التي تبدأ بـ <code className="font-mono text-red-400">AQ...</code> أو غيرها خاصة بخدمات سحابية أخرى وليست لـ Google AI Studio.</p>
+              <p>✅ <strong>{t.keyHelpValid}</strong> {t.keyHelpValidDesc} <code className="text-orange-500 font-mono font-bold">AIzaSy...</code></p>
+              <p>❌ <strong>{t.keyHelpInvalid}</strong> <code className="font-mono text-red-400">AQ...</code> {t.keyHelpInvalidDesc}</p>
             </div>
             <ol className="list-decimal list-inside space-y-2 font-medium text-foreground text-xs leading-relaxed">
-              <li>اضغط على الزر البرتقالي بالأسفل لفتح <strong className="text-orange-500">Google AI Studio</strong>.</li>
-              <li>سجل دخول بحساب Google الخاص بك.</li>
-              <li>اضغط على <strong className="text-blue-500">&quot;Create API key&quot;</strong> ثم اختر <strong className="text-blue-500">&quot;Create API key in new project&quot;</strong>.</li>
-              <li>انسخ المفتاح (يبدأ بـ <code className="text-orange-500 font-mono">AIzaSy...</code>) والصقه في الموقع واضغط &quot;فحص&quot;.</li>
+              <li>{t.keyHelpS1}</li>
+              <li>{t.keyHelpS2}</li>
+              <li>{t.keyHelpS3}</li>
+              <li>{t.keyHelpS4}</li>
             </ol>
             <div className="pt-2 flex gap-2">
               <Button 
@@ -899,14 +902,14 @@ The category field must be one of: (${tagValues}).`;
                   setShowKeyHelpModal(false);
                 }}
               >
-                فتح Google AI Studio الآن <ExternalLink className="w-4 h-4 mr-2 ml-2" />
+                {t.keyHelpOpen} <ExternalLink className="w-4 h-4 mr-2 ml-2" />
               </Button>
               <Button
                 variant="outline"
                 className="text-xs h-10 rounded-xl"
                 onClick={() => setShowKeyHelpModal(false)}
               >
-                إغلاق
+                {t.close}
               </Button>
             </div>
           </div>
@@ -919,7 +922,7 @@ The category field must be one of: (${tagValues}).`;
           <div className="flex items-center gap-2">
             <Images className="w-4 h-4 text-orange-500 shrink-0" />
             <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">
-              {t.page} ({images.length}/10):
+              {t.page} ({images.length}/15):
             </span>
             <div className="flex gap-1.5 overflow-x-auto py-1">
               {images.map((img, idx) => (
