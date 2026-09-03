@@ -162,6 +162,9 @@ export const UI_TEXT = {
     signedIn: 'تم تسجيل الدخول بنجاح!',
     signedOut: 'تم تسجيل الخروج',
     // Default tag names
+    modelFastest: 'الأسرع والأحدث',
+    modelBalanced: 'سريع ومتوازن',
+    modelHighQuality: 'أعلى جودة وسياق',
     tag_dialogue: 'حوار',
     tag_thought: 'أفكار',
     tag_scream: 'صراخ',
@@ -321,6 +324,9 @@ export const UI_TEXT = {
     accountCreated: 'Account created!',
     signedIn: 'Signed in successfully!',
     signedOut: 'Signed out',
+    modelFastest: 'Fastest & newest',
+    modelBalanced: 'Fast & balanced',
+    modelHighQuality: 'Highest quality',
     tag_dialogue: 'Dialogue',
     tag_thought: 'Thought',
     tag_scream: 'Scream',
@@ -334,3 +340,25 @@ export const UI_TEXT = {
 } as const;
 
 export type Dict = (typeof UI_TEXT)['en'];
+
+const DEFAULT_TAG_VALUES = [
+  'dialogue',
+  'thought',
+  'scream',
+  'system',
+  'phone',
+  'narrator',
+  'sfx',
+  'whisper',
+  'other',
+] as const;
+
+/** Localized display name for a tag: default tags translate, custom tags keep the user's label. */
+export function getTagLabel(tag: { value: string; label: string }, lang: Lang): string {
+  if ((DEFAULT_TAG_VALUES as readonly string[]).includes(tag.value)) {
+    const key = `tag_${tag.value}` as keyof (typeof UI_TEXT)['ar'];
+    const val = UI_TEXT[lang][key];
+    if (typeof val === 'string') return val;
+  }
+  return tag.label;
+}
