@@ -334,3 +334,25 @@ export const UI_TEXT = {
 } as const;
 
 export type Dict = (typeof UI_TEXT)['en'];
+
+const DEFAULT_TAG_VALUES = [
+  'dialogue',
+  'thought',
+  'scream',
+  'system',
+  'phone',
+  'narrator',
+  'sfx',
+  'whisper',
+  'other',
+] as const;
+
+/** Localized display name for a tag: default tags translate, custom tags keep the user's label. */
+export function getTagLabel(tag: { value: string; label: string }, lang: Lang): string {
+  if ((DEFAULT_TAG_VALUES as readonly string[]).includes(tag.value)) {
+    const key = `tag_${tag.value}` as keyof (typeof UI_TEXT)['ar'];
+    const val = UI_TEXT[lang][key];
+    if (typeof val === 'string') return val;
+  }
+  return tag.label;
+}
