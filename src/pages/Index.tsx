@@ -65,13 +65,17 @@ export default function Index() {
   const { t, lang, toggleLang } = useI18n();
 
   const AVAILABLE_MODELS = [
-    { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
-  ];
+  { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
+  { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
+  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
+];
 
   // Map display model IDs to real Google Gemini API model IDs (with fallback chain)
   const MODEL_API_MAP: Record<string, string[]> = {
-    'gemini-3.6-flash': ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'],
-  };
+  'gemini-3.6-flash': ['gemini-3.6-flash', 'gemini-2.5-flash'],
+  'gemini-3.7-flash': ['gemini-3.7-flash', 'gemini-3.6-flash'],
+  'gemini-3.8-flash': ['gemini-3.8-flash', 'gemini-3.7-flash'],
+};
 
   const [images, setImages] = useState<ImageItem[]>(() => {
     const saved = localStorage.getItem('manga_studio_images');
@@ -172,7 +176,7 @@ export default function Index() {
   // Strip spaces and surrounding quotes cleanly
   const cleanApiKey = apiKey.replace(/[\s\r\n\t"']/g, '').trim();
 
-  const getEffectiveModel = () => 'Gemini 3.6 Flash';
+ const getEffectiveModel = () => AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label || selectedModel;
 
   const handleTestApiKey = async () => {
     if (!cleanApiKey) {
