@@ -19,6 +19,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { useI18n } from '@/lib/language';
+import { getTagLabel, BRAND_NAME } from '@/lib/i18n';
 
 export interface ExtractedText {
   id: string;
@@ -59,123 +61,16 @@ const DEFAULT_TAGS: TagRule[] = [
   { value: 'other', label: 'أخرى (Other)', prefix: '', suffix: '' },
 ];
 
-const AVAILABLE_MODELS = [
-  { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash (الأسرع والأحدث)' },
-  { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash (سريع ومتوازن)' },
-  { id: 'gemini-3.6-pro', label: 'Gemini 3.6 Pro (أعلى جودة وسياق)' },
-  { id: 'custom', label: 'نموذج مخصص (Custom Model)...' }
-];
-
-const UI_TEXT = {
-  ar: {
-    subtitle: 'أداة استخراج وترجمة وتنسيق سكريبتات الويب تون والمانجا',
-    apiLabel: 'مفتاح Gemini API:',
-    apiKeyPlaceholder: 'AIzaSy... أو مفتاحك الخاص',
-    backToUpload: 'العودة للرفع',
-    reAnalyze: 'إعادة التحليل',
-    analyzeAll: 'تحليل كافة الصور',
-    extractOcrOnly: 'استخراج النص فقط (OCR)',
-    exportOriginal: 'تصدير النص الأصلي (OCR)',
-    exportTranslated: 'تصدير النص المترجم',
-    exportCurrentPage: 'الصفحة الحالية فقط',
-    exportAllPages: 'كافة الصفحات',
-    pagePreview: 'معاينة الصفحة',
-    extractedTexts: 'النصوص المستخرجة',
-    originalText: 'النص الأصلي:',
-    translatedText: 'النص المترجم / الناتج:',
-    noImage: 'لا توجد صورة محددة',
-    page: 'صفحة',
-    multiImageLimit: 'الحد الأقصى هو 10 صور فقط',
-    paragraph: 'فقرة',
-    selectImageFirst: 'الرجاء اختيار صورة واحدة على الأقل',
-    enterApiKey: 'يرجى إدخال مفتاح Gemini API أولاً',
-    analyzing: 'جاري معالجة واستخراج النصوص بواسطة Gemini...',
-    successExtract: 'تم استخراج النصوص بنجاح!',
-    noItemsToExport: 'لا توجد نصوص لتصديرها لهذه الصفحة',
-    clearAll: 'حذف الكل',
-    tagSettings: 'إعدادات العلامات',
-    addNewTag: 'إضافة علامة جديدة',
-    tagName: 'اسم العلامة',
-    tagPrefix: 'البادئة',
-    tagSuffix: 'اللاحقة',
-    add: 'إضافة',
-    resetDefaultTags: 'استعادة العلامات الافتراضية',
-    newProject: 'مشروع جديد',
-    copyBlock: 'نسخ الفقرة',
-    copyAllPage: 'نسخ نصوص الصفحة',
-    copied: 'تم النسخ!',
-    findReplace: 'البحث والاستبدال',
-    findPlaceholder: 'بحث عن كلمة...',
-    replacePlaceholder: 'استبدال بـ...',
-    replaceCurrentPage: 'في هذه الصفحة',
-    replaceAllPages: 'في كل الصفحات',
-    glossaryTitle: 'قاموس المصطلحات والأسماء',
-    origTerm: 'الاسم/المصطلح الأصلي',
-    transTerm: 'الترجمة المعتمدة',
-    addGlossary: 'إضافة للقاموس',
-    visualOverlay: 'المعاينة البصرية النصية',
-    howToUse: 'كيفية الاستخدام',
-    uploadReference: 'إرفاق ملف ترجمة سابقة كمرجع (اختياري)',
-    referenceUploaded: 'تم إرفاق المرجع:',
-    testApiKey: 'فحص واختبار المفتاح',
-    selectModel: 'النموذج المستخدم',
-  },
-  en: {
-    subtitle: 'Webtoon & Manga OCR, Translation and Typesetting tool',
-    apiLabel: 'Gemini API Key:',
-    apiKeyPlaceholder: 'AIzaSy... or your API key',
-    backToUpload: 'Back to Upload',
-    reAnalyze: 'Re-analyze',
-    analyzeAll: 'Analyze All Images',
-    extractOcrOnly: 'Extract Text Only (OCR)',
-    exportOriginal: 'Export Original (OCR)',
-    exportTranslated: 'Export Translated',
-    exportCurrentPage: 'Current Page Only',
-    exportAllPages: 'All Pages',
-    pagePreview: 'Page Preview',
-    extractedTexts: 'Extracted Texts',
-    originalText: 'Original Text:',
-    translatedText: 'Translated / Result Text:',
-    noImage: 'No image selected',
-    page: 'Page',
-    multiImageLimit: 'Maximum limit is 10 images',
-    paragraph: 'Block',
-    selectImageFirst: 'Please select at least one image',
-    enterApiKey: 'Please enter your Gemini API Key first',
-    analyzing: 'Processing text with Gemini...',
-    successExtract: 'Texts successfully extracted!',
-    noItemsToExport: 'No texts available to export',
-    clearAll: 'Clear All',
-    tagSettings: 'Tag Formatting',
-    addNewTag: 'Add Custom Tag',
-    tagName: 'Tag Name',
-    tagPrefix: 'Prefix',
-    tagSuffix: 'Suffix',
-    add: 'Add Tag',
-    resetDefaultTags: 'Reset Default Tags',
-    newProject: 'New Project',
-    copyBlock: 'Copy Block',
-    copyAllPage: 'Copy Page Texts',
-    copied: 'Copied!',
-    findReplace: 'Find & Replace',
-    findPlaceholder: 'Find text...',
-    replacePlaceholder: 'Replace with...',
-    replaceCurrentPage: 'Current Page',
-    replaceAllPages: 'All Pages',
-    glossaryTitle: 'Character & Term Glossary',
-    origTerm: 'Original Name/Term',
-    transTerm: 'Approved Translation',
-    addGlossary: 'Add to Glossary',
-    visualOverlay: 'Visual Text Overlay',
-    howToUse: 'How to Use',
-    uploadReference: 'Upload previous translation reference (Optional)',
-    referenceUploaded: 'Reference uploaded:',
-    testApiKey: 'Test API Key',
-    selectModel: 'Selected Model',
-  },
-};
-
 export default function Index() {
+  const { t, lang, toggleLang } = useI18n();
+
+  const AVAILABLE_MODELS = [
+    { id: 'gemini-3.7-flash', label: `Gemini 3.7 Flash (${t.modelFastest})` },
+    { id: 'gemini-3.6-flash', label: `Gemini 3.6 Flash (${t.modelBalanced})` },
+    { id: 'gemini-3.6-pro', label: `Gemini 3.6 Pro (${t.modelHighQuality})` },
+    { id: 'custom', label: t.customModel },
+  ];
+
   const [images, setImages] = useState<ImageItem[]>(() => {
     const saved = localStorage.getItem('manga_studio_images');
     return saved ? JSON.parse(saved) : [];
@@ -187,7 +82,6 @@ export default function Index() {
   const [isTestingKey, setIsTestingKey] = useState<boolean>(false);
   const [currentProcessingMsg, setCurrentProcessingMsg] = useState<string>('');
 
-  const [lang, setLang] = useState<'ar' | 'en'>('ar');
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
 
   const [apiKey, setApiKey] = useState<string>(() => {
@@ -272,7 +166,6 @@ export default function Index() {
     }
   }, [isDarkMode]);
 
-  const t = UI_TEXT[lang];
   const activeImage = images[activeImageIndex] || null;
   const currentItems = activeImage ? (resultsMap[activeImage.id] || []) : [];
 
@@ -300,20 +193,16 @@ export default function Index() {
       const data = await res.json();
       
       if (res.ok && data?.models) {
-        toast.success(
-          lang === 'ar' 
-            ? `✅ المفتاح صحيح وفعال 100%! متصل بنجاح مع Google Gemini (${data.models.length} نماذج متاحة).` 
-            : `✅ Gemini API Key is valid! (${data.models.length} models available).`
-        );
+        toast.success(t.keyValid(data.models.length));
       } else {
         const errMsg = data?.error?.message || `HTTP ${res.status}: ${res.statusText}`;
-        toast.error(`❌ خطأ من Google: ${errMsg}`, { duration: 6000 });
+        toast.error(t.googleError(errMsg), { duration: 6000 });
         if (cleanApiKey.startsWith('AQ.')) {
           setShowKeyHelpModal(true);
         }
       }
     } catch (err: any) {
-      toast.error(`❌ تعذر الاتصال: ${err.message}`);
+      toast.error(t.connectionFailed(err.message));
     } finally {
       setIsTestingKey(false);
     }
@@ -363,7 +252,7 @@ export default function Index() {
     setReferenceFileName('');
     localStorage.removeItem('manga_studio_results');
     localStorage.removeItem('manga_studio_images');
-    toast.success(lang === 'ar' ? 'تم بدء مشروع جديد' : 'New project started');
+    toast.success(t.newProjectStarted);
   };
 
   const handleSaveApiKey = (key: string) => {
@@ -379,13 +268,16 @@ export default function Index() {
     reader.onload = (event) => {
       setReferenceText(event.target?.result as string);
       setReferenceFileName(file.name);
-      toast.success(lang === 'ar' ? 'تم استيراد المرجع بنجاح!' : 'Reference imported!');
+      toast.success(t.referenceImported);
     };
     reader.readAsText(file);
   };
 
   const handleAddCustomTag = () => {
-    if (!newTagLabel.trim()) return;
+    if (!newTagLabel.trim()) {
+      toast.error(t.tagNameRequired);
+      return;
+    }
     const val = `custom_${Date.now()}`;
     const newTag: TagRule = {
       value: val,
@@ -397,16 +289,22 @@ export default function Index() {
     setNewTagLabel('');
     setNewTagPrefix('');
     setNewTagSuffix('');
-    toast.success(lang === 'ar' ? 'تمت إضافة العلامة!' : 'Tag added!');
+    toast.success(t.tagAdded);
   };
 
   const handleDeleteTag = (index: number) => {
-    if (tags.length <= 1) return;
+    if (tags.length <= 1) {
+      toast.error(t.tagDeleteLastError);
+      return;
+    }
     setTags(tags.filter((_, i) => i !== index));
   };
 
   const handleAddGlossaryItem = () => {
-    if (!newGlossaryOrig.trim() || !newGlossaryTrans.trim()) return;
+    if (!newGlossaryOrig.trim() || !newGlossaryTrans.trim()) {
+      toast.error(t.glossaryFieldsRequired);
+      return;
+    }
     const item: GlossaryItem = {
       id: `g_${Date.now()}`,
       original: newGlossaryOrig.trim(),
@@ -415,7 +313,7 @@ export default function Index() {
     setGlossary([...glossary, item]);
     setNewGlossaryOrig('');
     setNewGlossaryTrans('');
-    toast.success(lang === 'ar' ? 'تمت إضافة المصطلح' : 'Term added');
+    toast.success(t.glossaryAdded);
   };
 
   const handleDeleteGlossaryItem = (id: string) => {
@@ -485,11 +383,7 @@ export default function Index() {
     }
 
     setResultsMap(newMap);
-    toast.success(
-      lang === 'ar'
-        ? `تم استبدال الكلمة ${totalReplacements} مرة!`
-        : `Replaced ${totalReplacements} occurrences!`
-    );
+    toast.success(t.replacedOccurrences(totalReplacements));
   };
 
   const parseJsonFromResponse = (raw: string): ExtractedText[] | null => {
@@ -519,7 +413,7 @@ export default function Index() {
 
   const processGeminiRequest = async (targetImg: ImageItem, ocrOnly = false): Promise<{ data: ExtractedText[] | null; error?: string }> => {
     if (!cleanApiKey) {
-      return { data: null, error: 'مفتاح الـ API فارغ' };
+      return { data: null, error: t.emptyApiKey };
     }
 
     const mimeTypeMatch = targetImg.url.match(/^data:(image\/[a-zA-Z+]+);base64,/);
@@ -632,7 +526,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
     }
 
     setIsAnalyzing(true);
-    setCurrentProcessingMsg(lang === 'ar' ? `جاري معالجة واستخراج النصوص بواسطة ${getEffectiveModel()}...` : `Processing with ${getEffectiveModel()}...`);
+    setCurrentProcessingMsg(t.analyzingWith(getEffectiveModel()));
 
     const { data: res, error } = await processGeminiRequest(activeImage, ocrOnly);
     if (res && res.length > 0) {
@@ -651,7 +545,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
         });
       }
     } else {
-      const errorMsg = error || (lang === 'ar' ? 'تحقق من صلاحية مفتاح الـ API' : 'Check your API Key');
+      const errorMsg = error || t.checkApiKey;
       toast.error(`❌ ${errorMsg}`, { duration: 8000 });
       if (cleanApiKey.startsWith('AQ.')) {
         setShowKeyHelpModal(true);
@@ -678,7 +572,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
 
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
-      setCurrentProcessingMsg(lang === 'ar' ? `جاري معالجة الصورة (${i + 1} من ${images.length})...` : `Processing image (${i + 1} of ${images.length})...`);
+      setCurrentProcessingMsg(t.processingImage(i + 1, images.length));
       const { data: res, error } = await processGeminiRequest(img!, ocrOnly);
       if (res && res.length > 0) {
         newMap[img!.id] = res;
@@ -693,10 +587,10 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
     setIsAnalyzing(false);
 
     if (successCount > 0) {
-      toast.success(lang === 'ar' ? `تمت معالجة ${successCount} صورة بنجاح!` : `Processed ${successCount} images successfully!`);
+      toast.success(t.processedImages(successCount));
       setView('results');
     } else {
-      toast.error(`❌ خطأ: ${lastError || 'تعذر استخراج النصوص'}`, { duration: 8000 });
+      toast.error(`❌ ${lastError || t.extractionFailed}`, { duration: 8000 });
       if (cleanApiKey.startsWith('AQ.')) {
         setShowKeyHelpModal(true);
       }
@@ -741,7 +635,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    toast.success(lang === 'ar' ? `تم تصدير (${fileName}) بنجاح!` : `Exported (${fileName}) successfully!`);
+    toast.success(t.exported(fileName));
   };
 
   const updateItem = (id: string, field: keyof ExtractedText, value: string) => {
@@ -759,7 +653,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
       <header className="mb-6 flex flex-col xl:flex-row items-start xl:items-center justify-between border-b border-border pb-4 gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-orange-600 dark:text-orange-500">
-            Manhwa Transtool Studio
+            {BRAND_NAME}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t.subtitle}</p>
         </div>
@@ -829,7 +723,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
                     </div>
                   ))}
                   {glossary.length === 0 && (
-                    <p className="text-xs text-center text-muted-foreground py-4">لا توجد مصطلحات أو أسماء محفوظة بعد</p>
+                    <p className="text-xs text-center text-muted-foreground py-4">{t.glossaryEmpty}</p>
                   )}
                 </div>
 
@@ -865,7 +759,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
                 <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
                   {tags.map((tag, i) => (
                     <div key={tag.value || i} className="flex items-center gap-1.5 bg-muted/40 p-2 rounded-lg text-xs">
-                      <span className="font-bold w-24 truncate">{tag.label}</span>
+                      <span className="font-bold w-24 truncate">{getTagLabel(tag, lang)}</span>
                       <Input
                         value={tag.prefix}
                         onChange={(e) => {
@@ -900,7 +794,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
                     <Input placeholder={t.tagSuffix} value={newTagSuffix} onChange={(e) => setNewTagSuffix(e.target.value)} className="h-8 text-xs" />
                   </div>
                   <Button onClick={handleAddCustomTag} className="w-full h-8 text-xs font-bold bg-orange-600 text-white">
-                    <Plus className="w-3.5 h-3.5 ml-1" /> {t.add}
+                    <Plus className="w-3.5 h-3.5 me-1" /> {t.add}
                   </Button>
                 </div>
               </div>
@@ -936,7 +830,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
             target="_blank" 
             rel="noopener noreferrer"
             className="h-9 w-9 rounded-xl inline-flex items-center justify-center border border-input bg-background hover:bg-[#5865F2] hover:text-white hover:border-[#5865F2] transition-colors"
-            title="انضم لسيرفر الديسكورد"
+            title={t.joinDiscord}
           >
             <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
               <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .079.009c.12.098.245.195.372.288a.077.077 0 0 1-.006.128 12.299 12.299 0 0 1-1.873.891.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
@@ -947,9 +841,9 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
             {isDarkMode ? <Sun className="w-4 h-4 text-orange-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
           </Button>
 
-          <Button variant="outline" className="h-9 gap-1.5 text-xs font-bold px-3 rounded-xl" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}>
+          <Button variant="outline" className="h-9 gap-1.5 text-xs font-bold px-3 rounded-xl" onClick={toggleLang}>
             <Languages className="w-4 h-4 text-orange-500" />
-            {lang === 'ar' ? 'English' : 'عربي'}
+            {t.switchLangLabel}
           </Button>
 
           {/* خانة الـ API مع زر فحص مباشر */}
@@ -970,7 +864,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
               className="h-7 px-2 text-[11px] text-orange-600 dark:text-orange-400 font-bold hover:bg-orange-500/10 rounded-lg gap-1"
             >
               {isTestingKey ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-              <span>{lang === 'ar' ? 'فحص' : 'Test'}</span>
+              <span>{t.test}</span>
             </Button>
             <Button
               variant="ghost"
@@ -1073,7 +967,6 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
               onClearImage={handleClearAllImages}
               onConfigChange={(updated) => setConfig((prev) => ({ ...prev, ...updated }))}
               onAnalyze={() => handleAnalyzeCurrent(false)}
-              lang={lang}
             />
 
             <div className="flex flex-col items-center justify-center mt-2">
@@ -1106,12 +999,12 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
                     <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                       <div className="bg-orange-500 h-full animate-[pulse_2s_ease-in-out_infinite] w-full origin-left scale-x-100"></div>
                     </div>
-                    <p className="text-[10px] text-muted-foreground text-center">يرجى الانتظار، جاري التواصل مع خوادم الذكاء الاصطناعي واستخراج النصوص...</p>
+                    <p className="text-[10px] text-muted-foreground text-center">{t.analysisWaitNote}</p>
                   </div>
                 ) : (
                   <div className="flex flex-wrap justify-center gap-3 w-full animate-in fade-in zoom-in">
                     <Button onClick={() => handleAnalyzeCurrent(false)} className="bg-orange-600 hover:bg-orange-700 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-md">
-                      <Sparkles className="w-4 h-4" /> {lang === 'ar' ? 'تحليل الصورة الحالية' : 'Analyze Current Image'}
+                      <Sparkles className="w-4 h-4" /> {t.analyzeCurrent}
                     </Button>
                     <Button onClick={() => handleAnalyzeCurrent(true)} variant="outline" className="border-orange-500/40 text-orange-600 dark:text-orange-400 font-bold h-11 px-6 rounded-xl gap-2">
                       <FileText className="w-4 h-4" /> {t.extractOcrOnly}
@@ -1126,7 +1019,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
           </div>
 
           <div className="lg:col-span-4">
-            <SidebarInfoCards lang={lang} />
+            <SidebarInfoCards />
           </div>
         </div>
       ) : (
@@ -1292,7 +1185,7 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
                         <SelectContent className="rounded-xl">
                           {tags.map((tag) => (
                             <SelectItem key={tag.value} value={tag.value} className="text-xs font-medium">
-                              {tag.label}
+                              {getTagLabel(tag, lang)}
                             </SelectItem>
                           ))}
                         </SelectContent>
