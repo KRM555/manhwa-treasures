@@ -579,11 +579,19 @@ The category field must be one of: (${tagValues}).`;
       if (activeImage) {
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (session?.user) {
-            supabase.from('user_history').insert({
-              user_id: session.user.id,
-              image_name: activeImage.name,
-              extracted_count: res.length,
-            });
+            supabase
+              .from('user_history')
+              .insert({
+                user_id: session.user.id,
+                image_name: activeImage.name,
+                extracted_count: res.length,
+              })
+              .then(({ error: histError }) => {
+                if (histError) {
+                  console.error('Failed to save history:', histError);
+                  toast.error(t.historySaveError, { duration: 4000 });
+                }
+              });
           }
         });
       }
