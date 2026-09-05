@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
   DropdownMenu,
@@ -65,17 +66,21 @@ export default function Index() {
   const { t, lang, toggleLang } = useI18n();
 
   const AVAILABLE_MODELS = [
-  { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
-  { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
-  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
-];
+    { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
+    { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
+    { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
+    { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro' },
+    { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite' },
+  ];
 
   // Map display model IDs to real Google Gemini API model IDs (with fallback chain)
   const MODEL_API_MAP: Record<string, string[]> = {
-  'gemini-3.6-flash': ['gemini-3.6-flash', 'gemini-2.5-flash'],
-  'gemini-3.7-flash': ['gemini-3.7-flash', 'gemini-3.6-flash'],
-  'gemini-3.8-flash': ['gemini-3.8-flash', 'gemini-3.7-flash'],
-};
+    'gemini-3.6-flash': ['gemini-3.6-flash', 'gemini-2.5-flash'],
+    'gemini-3.7-flash': ['gemini-3.7-flash', 'gemini-3.6-flash'],
+    'gemini-3.8-flash': ['gemini-3.8-flash', 'gemini-3.7-flash'],
+    'gemini-3.1-pro-preview': ['gemini-3.1-pro-preview', 'gemini-3.8-flash'],
+    'gemini-3.5-flash-lite': ['gemini-3.5-flash-lite', 'gemini-3.6-flash'],
+  };
 
   const [images, setImages] = useState<ImageItem[]>(() => {
     const saved = localStorage.getItem('manga_studio_images');
@@ -95,6 +100,7 @@ export default function Index() {
   });
 
   const [selectedModel, setSelectedModel] = useState<string>('gemini-3.6-flash');
+  const [extendedThinking, setExtendedThinking] = useState<boolean>(false);
 
   const [config, setConfig] = useState<TranslationConfig>({
     targetLanguage: 'ar',
@@ -471,6 +477,7 @@ The category field must be one of: (${tagValues}).`;
 
     for (let modelIdx = 0; modelIdx < apiModelIds.length; modelIdx++) {
       const apiModel = apiModelIds[modelIdx]!;
+      const supportsThinkingLevel = apiModel.startsWith('gemini-3.');
 
       if (modelIdx > 0) {
         toast.info(t.fallbackModel(apiModel), { duration: 4000 });
@@ -502,6 +509,13 @@ The category field must be one of: (${tagValues}).`;
               generationConfig: {
                 temperature: 0.1,
                 responseMimeType: 'application/json',
+                ...(extendedThinking && supportsThinkingLevel
+                  ? {
+                      thinkingConfig: {
+                        thinkingLevel: 'high',
+                      },
+                    }
+                  : {}),
               },
             }),
           });
@@ -728,6 +742,17 @@ The category field must be one of: (${tagValues}).`;
                 ))}
               </SelectContent>
             </Select>
+
+            <div className="ml-1 flex items-center gap-1.5 border-l border-border pl-2">
+              <Checkbox
+                checked={extendedThinking}
+                onCheckedChange={(checked) => setExtendedThinking(checked === true)}
+                aria-label="Extended Thinking"
+              />
+              <span className="text-[10px] font-bold whitespace-nowrap">
+                Extended Thinking
+              </span>
+            </div>
 
 
           </div>
