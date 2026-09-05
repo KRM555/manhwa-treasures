@@ -18,6 +18,7 @@ import {
 import { DetectedBubble, TranslationConfig } from '@/types/manga';
 import { TARGET_LANGUAGES } from '@/data/samples';
 import { toast } from 'sonner';
+import { useI18n } from '@/lib/language';
 
 interface TranslationViewerProps {
   imageSrc: string;
@@ -34,6 +35,7 @@ export const TranslationViewer: React.FC<TranslationViewerProps> = ({
   onUpdateBubble,
   onReset,
 }) => {
+  const { t } = useI18n();
   const [viewMode, setViewMode] = useState<'translated' | 'side-by-side' | 'original'>('translated');
   const [selectedBubbleId, setSelectedBubbleId] = useState<string | null>(bubbles[0]?.id || null);
   const [zoom, setZoom] = useState<number>(100);
@@ -234,13 +236,13 @@ export const TranslationViewer: React.FC<TranslationViewerProps> = ({
           <div className="p-4 border border-border shadow-sm rounded-2xl bg-card space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-border/50">
               <h3 className="text-xs font-bold text-orange-500">
-                📖 طريقة الاستخدام
+                {t.tvHowToUse}
               </h3>
               <a
                 href="https://discord.gg/nuaqTHvx"
                 target="_blank"
                 rel="noopener noreferrer"
-                title="الدعم والشكاوى عبر Discord"
+                title={t.tvDiscordTitle}
                 className="p-1.5 rounded-xl bg-[#5865F2]/10 text-[#5865F2] hover:bg-[#5865F2] hover:text-white transition-all duration-200"
               >
                 <svg className="w-5 h-5 fill-current" viewBox="0 0 127.14 96.36">
@@ -250,9 +252,9 @@ export const TranslationViewer: React.FC<TranslationViewerProps> = ({
             </div>
 
             <ol className="text-[11px] text-muted-foreground space-y-1 list-decimal list-inside leading-relaxed">
-              <li>اضغط على أي فقرة في الصفحة لتحديدها.</li>
-              <li>عدّل النص المترجم في الخانة بالأسفل.</li>
-              <li>احفظ التعديلات وقم بتصدير النص النهائي.</li>
+              <li>{t.tvStep1}</li>
+              <li>{t.tvStep2}</li>
+              <li>{t.tvStep3}</li>
             </ol>
           </div>
 

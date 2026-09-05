@@ -850,14 +850,14 @@ The category field must be one of: (${tagValues}).`;
             </DialogTrigger>
             <DialogContent className="max-w-lg rounded-2xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="text-lg font-bold text-orange-600">كيف يعمل الموقع ومفتاح Gemini؟</DialogTitle>
+                <DialogTitle className="text-lg font-bold text-orange-600">{t.howToTitle}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
-                <p>هذه الأداة مصممة لمساعدة المترجمين في استخراج وترجمة نصوص المانجا والويب تون بدقة وسرعة باستخدام الذكاء الاصطناعي (Gemini).</p>
+                <p>{t.howToIntro}</p>
                 <ul className="list-disc list-inside space-y-2">
-                  <li><strong>الخطوة 1:</strong> افتح <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-orange-500 font-bold underline">Google AI Studio</a> وأنشئ مفتاح API (يبدأ بـ <code>AIzaSy...</code>).</li>
-                  <li><strong>الخطوة 2:</strong> ضع المفتاح في الخانة واضغط على أيقونة &quot;فحص&quot; للتأكد من اتصاله بخوادم Google.</li>
-                  <li><strong>الخطوة 3:</strong> ارفع صور الفصل، واضغط &quot;تحليل الصورة&quot; ليتم التعرف عليها وترجمتها فوراً.</li>
+                  <li><strong>{t.howToStep1a}</strong> {t.howToStep1b}</li>
+                  <li><strong>{t.howToStep2a}</strong> {t.howToStep2b}</li>
+                  <li><strong>{t.howToStep3a}</strong> {t.howToStep3b}</li>
                 </ul>
               </div>
             </DialogContent>

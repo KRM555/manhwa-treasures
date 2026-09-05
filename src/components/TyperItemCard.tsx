@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useI18n } from '@/lib/language';
 
 interface TyperItemCardProps {
   item: DetectedBubble;
@@ -14,6 +15,7 @@ interface TyperItemCardProps {
 }
 
 export const TyperItemCard: React.FC<TyperItemCardProps> = ({ item, onChange }) => {
+  const { t } = useI18n();
   const categories = [
     { value: 'dialogue', label: 'حوار ""' },
     { value: 'thought', label: 'أفكار ()' },
@@ -70,7 +72,7 @@ export const TyperItemCard: React.FC<TyperItemCardProps> = ({ item, onChange }) 
         <div className="w-40">
           <Select value={item.category || 'dialogue'} onValueChange={handleCategoryChange}>
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="اختر التصنيف" />
+              <SelectValue placeholder={t.ticChooseCategory} />
             </SelectTrigger>
             <SelectContent>
               {categories.map((cat) => (

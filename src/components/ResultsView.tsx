@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, Edit3, Download, ArrowRight, Layers, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { useI18n } from '@/lib/language';
 
 interface CategorySetting {
   id?: string;
@@ -28,6 +29,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   onUpdateBubble,
   categories = [],
 }) => {
+  const { t } = useI18n();
   const [viewMode, setViewMode] = useState<'editor' | 'preview'>('editor');
   const [copied, setCopied] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
@@ -81,7 +83,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     });
     navigator.clipboard.writeText(content);
     setCopied(true);
-    toast.success('تم نسخ نصوص الصفحة الحالية بالتنسيق المظبوط!');
+    toast.success(t.rvCopiedPage);
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -101,7 +103,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           className="flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-xl border border-slate-700 transition-all"
         >
           <ArrowRight className="w-4 h-4" />
-          <span>رفع صور جديدة</span>
+          <span>{t.rvUploadNew}</span>
         </button>
 
         <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
@@ -114,7 +116,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             }`}
           >
             <Edit3 className="w-3.5 h-3.5" />
-            <span>محرر التايبر (Editor)</span>
+            <span>{t.rvTyperEditor}</span>
           </button>
           <button
             onClick={() => setViewMode('preview')}
@@ -125,7 +127,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             }`}
           >
             <Eye className="w-3.5 h-3.5" />
-            <span>معاينة مكبرة (Live Preview)</span>
+            <span>{t.rvZoomedPreview}</span>
           </button>
         </div>
 
@@ -135,7 +137,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl transition-all"
           >
             {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-orange-400" />}
-            <span>نسخ الصفحة الحالية</span>
+            <span>{t.rvCopyCurrentPage}</span>
           </button>
 
           <button
@@ -143,7 +145,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl shadow-lg shadow-orange-500/20 transition-all"
           >
             <Download className="w-4 h-4" />
-            <span>تصدير الكل (TXT)</span>
+            <span>{t.rvExportAll}</span>
           </button>
         </div>
       </div>
@@ -157,7 +159,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             <div className="text-xs font-bold text-slate-400 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-orange-400" />
-                الصفحات
+                {t.rvPages}
               </span>
               <span className="bg-slate-800 text-orange-400 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold">
                 {pages.length}
@@ -182,9 +184,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   className="w-full h-32 object-cover rounded-lg transition-all"
                 />
                 <div className="flex justify-between items-center px-1">
-                  <span className="text-[11px] font-bold text-slate-300">صفحة {idx + 1}</span>
+                  <span className="text-[11px] font-bold text-slate-300">{t.rvPageN(idx + 1)}</span>
                   <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">
-                    {p.bubbles?.length || 0} نص
+                    {t.rvTextsCount(p.bubbles?.length || 0)}
                   </span>
                 </div>
               </button>
@@ -199,7 +201,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               {/* النافذة الثانية: معاينة الصورة */}
               <div className="flex-1 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col h-full min-h-0 shadow-xl">
                 <div className="border-b border-slate-800 pb-2 mb-3">
-                  <span className="text-xs font-bold text-slate-300">معاينة الصورة</span>
+                  <span className="text-xs font-bold text-slate-300">{t.rvImagePreview}</span>
                 </div>
 
                 <div className="flex-1 flex items-center justify-center overflow-y-auto custom-scrollbar p-2">
@@ -299,7 +301,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               </div>
               <div className="w-[500px] space-y-4">
                 <h3 className="font-bold text-base border-b border-slate-800 pb-3 text-orange-400">
-                  النص النهائي الجاهز للتايبر (Page {activePageIndex + 1})
+                  {t.rvFinalTextReady(activePageIndex + 1)}
                 </h3>
                 <div className="space-y-3 font-mono text-xs">
                   {currentPage.bubbles?.map((b: any, idx: number) => (
