@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { lovable } from '@/integrations/lovable/index';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,12 +76,11 @@ export function AuthModal() {
   const handleGoogleLogin = async () => {
     try {
       setOauthLoading('google');
-      const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin },
       });
-      if (result.error) throw result.error;
-      if (result.redirected) return; // Browser is redirecting to Google
-      setOauthLoading(null);
+      if (error) throw error;
     } catch (error: any) {
       toast.error(t.googleError(error.message));
       setOauthLoading(null);
