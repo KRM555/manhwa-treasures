@@ -6,7 +6,11 @@ export const STORAGE_KEY_ADMINS = "manga_custom_admins";
 export const STORAGE_KEY_LOCAL_USER = "manga_local_auth_user";
 
 // Site owners / default super admins (Always exempt and have full admin privileges)
-export const DEFAULT_ADMIN_EMAILS = ["am1relgohary2002@gmail.com", "kareemelgohary01@gmail.com"];
+export const DEFAULT_ADMIN_EMAILS = [
+  "kareemelgohary01@gmail.com",
+  "kareemelgohary02@gmail.com",
+  "am1relgohary2002@gmail.com",
+];
 
 // Helper to normalize email
 export function normalizeEmail(email?: string | null): string {
@@ -117,7 +121,7 @@ export function addAdFreeEmail(email: string): boolean {
   }
 
   // 2. Sync with local server API fallback
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && window.location?.origin) {
     fetch("/api/ad-exemptions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -149,7 +153,7 @@ export function removeAdFreeEmail(email: string): boolean {
   }
 
   // 2. Sync with local server API fallback
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && window.location?.origin) {
     fetch("/api/ad-exemptions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -200,24 +204,47 @@ export function useAdStatus() {
       }
     }
 
-    const checkActiveUser = (email: string | null, customExempts?: string[]) => {
+    const checkActiveUser = async (email: string | null, customExempts?: string[]) => {
       // If no Supabase email, fall back to local stored session
       const effectiveEmail = email || getLocalAuthUser()?.email || null;
       setCurrentUserEmail(effectiveEmail);
       const admin = isAdminEmail(effectiveEmail);
       setIsAdmin(admin);
-      setIsAdFree(isEmailAdFree(effectiveEmail, customExempts || getAdFreeEmails()));
+      const currentList = customExempts || getAdFreeEmails();
+      const localAdFree = isEmailAdFree(effectiveEmail, currentList);
+      setIsAdFree(localAdFree);
+
+      // If not locally recognized as VIP yet, verify directly from Supabase vip_users
+      if (!localAdFree && effectiveEmail) {
+        const norm = normalizeEmail(effectiveEmail);
+        try {
+          const { data, error } = await supabase
+            .from("vip_users")
+            .select("email")
+            .eq("email", norm)
+            .maybeSingle();
+          if (!error && data?.email) {
+            setIsAdFree(true);
+            const merged = Array.from(new Set([...getAdFreeEmails(), norm]));
+            saveAdFreeEmails(merged);
+            setAdFreeEmails(merged);
+          }
+        } catch (e) {
+          console.debug("Supabase direct VIP check note:", e);
+        }
+      }
     };
 
     // Initial fetch of exempt emails from Supabase vip_users table
     const fetchSupabaseVips = async () => {
       try {
         const { data, error } = await supabase.from("vip_users").select("email");
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const remoteVips = data
             .map((item: { email: string }) => normalizeEmail(item.email))
             .filter(Boolean);
-          const merged = Array.from(new Set([...getAdFreeEmails(), ...remoteVips]));
+          const current = getAdFreeEmails();
+          const merged = Array.from(new Set([...current, ...remoteVips]));
           saveAdFreeEmails(merged);
           setAdFreeEmails(merged);
           checkActiveUser(null, merged);
@@ -242,14 +269,16 @@ export function useAdStatus() {
     }
 
     // Initial fetch of exempt emails from central server fallback
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && window.location?.origin) {
       fetch("/api/ad-exemptions")
         .then((res) => res.json())
         .then((data) => {
           if (data?.success && Array.isArray(data.exempts)) {
-            saveAdFreeEmails(data.exempts);
-            setAdFreeEmails(data.exempts);
-            checkActiveUser(null, data.exempts);
+            // MERGE with current list, NEVER wipe out Supabase VIPs!
+            const merged = Array.from(new Set([...getAdFreeEmails(), ...data.exempts]));
+            saveAdFreeEmails(merged);
+            setAdFreeEmails(merged);
+            checkActiveUser(null, merged);
           }
         })
         .catch(() => {});

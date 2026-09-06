@@ -5,7 +5,11 @@ import path from "path";
 const EXEMPT_FILE = path.join(process.cwd(), "data", "ad_exemptions.json");
 
 // Default initial exempt list
-const INITIAL_EXEMPTS = ["am1relgohary2002@gmail.com", "kareemelgohary01@gmail.com"];
+const INITIAL_EXEMPTS = [
+  "kareemelgohary01@gmail.com",
+  "kareemelgohary02@gmail.com",
+  "am1relgohary2002@gmail.com",
+];
 
 function readServerExempts(): string[] {
   try {

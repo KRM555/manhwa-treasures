@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Dialog,
@@ -110,7 +110,7 @@ export function AuthModal() {
     };
   }, []);
 
-  const fetchUserHistory = async () => {
+  const fetchUserHistory = useCallback(async () => {
     if (!user) return;
     setLoadingHistory(true);
     try {
@@ -127,7 +127,7 @@ export function AuthModal() {
     } finally {
       setLoadingHistory(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     if (!isOpen || !user) {
@@ -154,7 +154,7 @@ export function AuthModal() {
     } catch {
       // ignore
     }
-  }, [isOpen, user]);
+  }, [isOpen, user, fetchUserHistory]);
 
   const handleGoogleLogin = async () => {
     try {
@@ -177,8 +177,24 @@ export function AuthModal() {
       return;
     }
 
-    // If this user was added to the VIP exempt list and password is empty, activate directly
-    const isExempt = isEmailAdFree(cleanEmail, adFreeEmails);
+    // Check if this user was granted VIP status in local list or directly in Supabase vip_users
+    let isExempt = isEmailAdFree(cleanEmail, adFreeEmails);
+    if (!isExempt) {
+      try {
+        const { data } = await supabase
+          .from("vip_users")
+          .select("email")
+          .eq("email", cleanEmail)
+          .maybeSingle();
+        if (data?.email) {
+          isExempt = true;
+          addEmail(cleanEmail);
+        }
+      } catch (e) {
+        console.debug("VIP lookup note:", e);
+      }
+    }
+
     if (!password && isExempt) {
       const vipUser: LocalAuthUser = {
         id: "vip_" + Math.random().toString(36).substring(2, 9),
@@ -226,6 +242,18 @@ export function AuthModal() {
             };
             setLocalAuthUser(registeredUser);
             setUser(registeredUser);
+
+            // Save record in user_history so it appears in Supabase
+            try {
+              await supabase.from("user_history").insert({
+                user_id: data.user.id,
+                image_name: `تسجيل حساب جديد (${cleanEmail})`,
+                extracted_count: 0,
+              });
+            } catch (histErr) {
+              console.debug("user_history insert note:", histErr);
+            }
+
             toast.success(
               data.session
                 ? t.accountCreated
@@ -253,6 +281,18 @@ export function AuthModal() {
             };
             setLocalAuthUser(loggedInUser);
             setUser(loggedInUser);
+
+            // Save record in user_history so it appears in Supabase
+            try {
+              await supabase.from("user_history").insert({
+                user_id: data.user.id,
+                image_name: `تسجيل دخول (${cleanEmail})`,
+                extracted_count: 0,
+              });
+            } catch (histErr) {
+              console.debug("user_history sign-in insert note:", histErr);
+            }
+
             toast.success(t.signedIn);
             setIsOpen(false);
             return;
