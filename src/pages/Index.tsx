@@ -9,6 +9,8 @@ import { TranslationMemoryModal } from "@/components/TranslationMemoryModal";
 import { GlobalFindReplaceModal } from "@/components/GlobalFindReplaceModal";
 import { SplitBubbleModal } from "@/components/SplitBubbleModal";
 import { WorkspaceTabBar } from "@/components/WorkspaceTabBar";
+import { DriveImportModal } from "@/components/DriveImportModal";
+import { NavigationSidebar } from "@/components/NavigationSidebar";
 import {
   loadInitialWorkspaces,
   saveWorkspacesToStorage,
@@ -78,6 +80,7 @@ import {
   CheckSquare,
   Square,
   Split,
+  CloudDownload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -167,25 +170,37 @@ export default function Index() {
   const [copiedBubbleId, setCopiedBubbleId] = useState<string | null>(null);
   const [retranslatingBubbleId, setRetranslatingBubbleId] = useState<string | null>(null);
 
-  const [images, setImages] = useState<ImageItem[]>(() => {
-    const saved = localStorage.getItem("manga_studio_images");
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
+  // Multi-Workspace (Tabs) System
+  const [initialWorkspaceData] = useState(() => loadInitialWorkspaces());
+  const [workspaces, setWorkspaces] = useState<WorkspaceTab[]>(
+    () => initialWorkspaceData.workspaces,
+  );
+  const [activeTabId, setActiveTabId] = useState<string>(() => initialWorkspaceData.activeTabId);
+  const isSwitchingTabRef = useRef(false);
+
+  const initialTab =
+    initialWorkspaceData.workspaces.find((w) => w.id === initialWorkspaceData.activeTabId) ||
+    initialWorkspaceData.workspaces[0] ||
+    createDefaultWorkspace();
+
+  const [images, setImages] = useState<ImageItem[]>(() => initialTab.images || []);
+  const [activeImageIndex, setActiveImageIndex] = useState<number>(
+    () => initialTab.activeImageIndex || 0,
+  );
   const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   const [editingImageId, setEditingImageId] = useState<string | null>(null);
   const [editingImageName, setEditingImageName] = useState<string>("");
-  const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
-  const [view, setView] = useState<"upload" | "results">("upload");
+  const [selectedImageIds, setSelectedImageIds] = useState<string[]>(
+    () => initialTab.selectedImageIds || [],
+  );
+  const [view, setView] = useState<"upload" | "results">(() => initialTab.view || "upload");
 
-  const [startPageNumber, setStartPageNumber] = useState<number>(() => {
-    const saved = localStorage.getItem("manga_start_page_number");
-    return saved ? parseInt(saved, 10) || 1 : 1;
-  });
-  const [useFilenamePageNumber, setUseFilenamePageNumber] = useState<boolean>(() => {
-    const saved = localStorage.getItem("manga_use_filename_page_number");
-    return saved !== null ? saved === "true" : true;
-  });
+  const [startPageNumber, setStartPageNumber] = useState<number>(
+    () => initialTab.startPageNumber ?? 1,
+  );
+  const [useFilenamePageNumber, setUseFilenamePageNumber] = useState<boolean>(
+    () => initialTab.useFilenamePageNumber ?? true,
+  );
 
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [isTestingKey, setIsTestingKey] = useState<boolean>(false);
@@ -220,10 +235,9 @@ export default function Index() {
     };
   });
 
-  const [resultsMap, setResultsMap] = useState<Record<string, ExtractedText[]>>(() => {
-    const saved = localStorage.getItem("manga_studio_results");
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [resultsMap, setResultsMap] = useState<Record<string, ExtractedText[]>>(
+    () => initialTab.resultsMap || {},
+  );
 
   const [tags, setTags] = useState<TagRule[]>(() => {
     const saved = localStorage.getItem("custom_manga_tags");
@@ -249,10 +263,71 @@ export default function Index() {
   const [findText, setFindText] = useState("");
   const [replaceText, setReplaceText] = useState("");
 
-  const [referenceText, setReferenceText] = useState<string>("");
-  const [referenceFileName, setReferenceFileName] = useState<string>("");
+  const [referenceText, setReferenceText] = useState<string>(() => initialTab.referenceText || "");
+  const [referenceFileName, setReferenceFileName] = useState<string>(
+    () => initialTab.referenceFileName || "",
+  );
   const [showKeyHelpModal, setShowKeyHelpModal] = useState<boolean>(false);
+  const [showDriveModal, setShowDriveModal] = useState<boolean>(false);
+  const [showTagSettingsModal, setShowTagSettingsModal] = useState<boolean>(false);
+  const [showHowToUseModal, setShowHowToUseModal] = useState<boolean>(false);
   const [reAnalysisNote, setReAnalysisNote] = useState<string>("");
+
+  // Synchronize active tab state with the workspaces collection
+  useEffect(() => {
+    if (isSwitchingTabRef.current) {
+      isSwitchingTabRef.current = false;
+      return;
+    }
+    setWorkspaces((prev) => {
+      const idx = prev.findIndex((w) => w.id === activeTabId);
+      if (idx === -1) return prev;
+      const current = prev[idx];
+      if (
+        current.images === images &&
+        current.activeImageIndex === activeImageIndex &&
+        current.resultsMap === resultsMap &&
+        current.selectedImageIds === selectedImageIds &&
+        current.view === view &&
+        current.startPageNumber === startPageNumber &&
+        current.useFilenamePageNumber === useFilenamePageNumber &&
+        current.referenceText === referenceText &&
+        current.referenceFileName === referenceFileName
+      ) {
+        return prev;
+      }
+      const updated = [...prev];
+      updated[idx] = {
+        ...current,
+        images,
+        activeImageIndex,
+        resultsMap,
+        selectedImageIds,
+        view,
+        startPageNumber,
+        useFilenamePageNumber,
+        referenceText,
+        referenceFileName,
+      };
+      return updated;
+    });
+  }, [
+    activeTabId,
+    images,
+    activeImageIndex,
+    resultsMap,
+    selectedImageIds,
+    view,
+    startPageNumber,
+    useFilenamePageNumber,
+    referenceText,
+    referenceFileName,
+  ]);
+
+  // Persist all workspaces to localStorage
+  useEffect(() => {
+    saveWorkspacesToStorage(workspaces, activeTabId);
+  }, [workspaces, activeTabId]);
 
   useEffect(() => {
     localStorage.setItem("gemini_selected_model", selectedModel);
@@ -497,6 +572,148 @@ export default function Index() {
     setEditingImageName("");
   };
 
+  const handleSelectTab = (nextTabId: string) => {
+    if (nextTabId === activeTabId) return;
+    const targetTab = workspaces.find((w) => w.id === nextTabId);
+    if (!targetTab) return;
+
+    isSwitchingTabRef.current = true;
+
+    // First save the current tab values to workspaces immediately
+    setWorkspaces((prev) =>
+      prev.map((w) =>
+        w.id === activeTabId
+          ? {
+              ...w,
+              images,
+              activeImageIndex,
+              resultsMap,
+              selectedImageIds,
+              view,
+              startPageNumber,
+              useFilenamePageNumber,
+              referenceText,
+              referenceFileName,
+            }
+          : w,
+      ),
+    );
+
+    // Switch states to the target tab
+    setImages(targetTab.images || []);
+    setActiveImageIndex(targetTab.activeImageIndex || 0);
+    setResultsMap(targetTab.resultsMap || {});
+    setSelectedImageIds(targetTab.selectedImageIds || []);
+    setView(targetTab.view || "upload");
+    setStartPageNumber(targetTab.startPageNumber ?? 1);
+    setUseFilenamePageNumber(targetTab.useFilenamePageNumber ?? true);
+    setReferenceText(targetTab.referenceText || "");
+    setReferenceFileName(targetTab.referenceFileName || "");
+    setActiveTabId(nextTabId);
+  };
+
+  const handleCreateTab = () => {
+    const newName = deriveNextTabName(workspaces);
+    const newTab = createDefaultWorkspace(undefined, newName);
+
+    isSwitchingTabRef.current = true;
+
+    // Save current tab before creating new
+    const updatedWorkspaces = workspaces.map((w) =>
+      w.id === activeTabId
+        ? {
+            ...w,
+            images,
+            activeImageIndex,
+            resultsMap,
+            selectedImageIds,
+            view,
+            startPageNumber,
+            useFilenamePageNumber,
+            referenceText,
+            referenceFileName,
+          }
+        : w,
+    );
+
+    const nextWorkspaces = [...updatedWorkspaces, newTab];
+    setWorkspaces(nextWorkspaces);
+
+    // Switch to new tab
+    setImages([]);
+    setActiveImageIndex(0);
+    setResultsMap({});
+    setSelectedImageIds([]);
+    setView("upload");
+    setStartPageNumber(1);
+    setUseFilenamePageNumber(true);
+    setReferenceText("");
+    setReferenceFileName("");
+    setActiveTabId(newTab.id);
+    toast.success(lang === "ar" ? `تم فتح ${newName}` : `Created ${newName}`);
+  };
+
+  const handleCloseTab = (tabIdToClose: string) => {
+    if (workspaces.length <= 1) {
+      toast.info(t.cannotCloseOnlyTab);
+      return;
+    }
+
+    const filtered = workspaces.filter((w) => w.id !== tabIdToClose);
+    setWorkspaces(filtered);
+
+    if (activeTabId === tabIdToClose) {
+      isSwitchingTabRef.current = true;
+      const closingIdx = workspaces.findIndex((w) => w.id === tabIdToClose);
+      const nextIdx = Math.max(0, closingIdx - 1);
+      const nextTab = filtered[nextIdx] || filtered[0];
+
+      setImages(nextTab.images || []);
+      setActiveImageIndex(nextTab.activeImageIndex || 0);
+      setResultsMap(nextTab.resultsMap || {});
+      setSelectedImageIds(nextTab.selectedImageIds || []);
+      setView(nextTab.view || "upload");
+      setStartPageNumber(nextTab.startPageNumber ?? 1);
+      setUseFilenamePageNumber(nextTab.useFilenamePageNumber ?? true);
+      setReferenceText(nextTab.referenceText || "");
+      setReferenceFileName(nextTab.referenceFileName || "");
+      setActiveTabId(nextTab.id);
+    }
+  };
+
+  const handleRenameTab = (tabId: string, newName: string) => {
+    setWorkspaces((prev) => prev.map((w) => (w.id === tabId ? { ...w, name: newName } : w)));
+  };
+
+  const handleDuplicateTab = (tabId: string) => {
+    const srcTab = workspaces.find((w) => w.id === tabId);
+    if (!srcTab) return;
+
+    const srcImages = tabId === activeTabId ? images : srcTab.images;
+    const srcResults = tabId === activeTabId ? resultsMap : srcTab.resultsMap;
+    const srcActiveIdx = tabId === activeTabId ? activeImageIndex : srcTab.activeImageIndex;
+    const srcView = tabId === activeTabId ? view : srcTab.view;
+
+    const dupName = `${srcTab.name} (${lang === "ar" ? "نسخة" : "Copy"})`;
+    const dupTab: WorkspaceTab = {
+      ...createDefaultWorkspace(undefined, dupName),
+      images: JSON.parse(JSON.stringify(srcImages || [])),
+      activeImageIndex: srcActiveIdx,
+      resultsMap: JSON.parse(JSON.stringify(srcResults || {})),
+      selectedImageIds: [],
+      view: srcView,
+      startPageNumber: srcTab.startPageNumber ?? 1,
+      useFilenamePageNumber: srcTab.useFilenamePageNumber ?? true,
+      referenceText: srcTab.referenceText || "",
+      referenceFileName: srcTab.referenceFileName || "",
+    };
+
+    setWorkspaces((prev) => [...prev, dupTab]);
+    toast.success(
+      lang === "ar" ? `تم تكرار "${srcTab.name}" بنجاح` : `Duplicated "${srcTab.name}"`,
+    );
+  };
+
   const handleClearAllImages = () => {
     setImages([]);
     setSelectedImageIds([]);
@@ -505,10 +722,39 @@ export default function Index() {
     setReferenceText("");
     setReferenceFileName("");
     setStartPageNumber(1);
-    localStorage.removeItem("manga_studio_results");
-    localStorage.removeItem("manga_studio_images");
-    localStorage.removeItem("manga_start_page_number");
     toast.success(t.newProjectStarted);
+  };
+
+  const handleDriveImagesImported = (importedImages: { url: string; name: string }[]) => {
+    const existingNames = new Set(images.map((img) => img.name));
+    const newItems = importedImages
+      .filter((img) => !existingNames.has(img.name))
+      .map((img, i) => ({
+        id: `img-drive-${Date.now()}-${i}`,
+        url: img.url,
+        name: img.name,
+      }));
+
+    if (newItems.length === 0) {
+      toast.info(
+        lang === "ar"
+          ? "جميع الصور موجودة بالفعل في المشروع"
+          : "All images already exist in project",
+      );
+      return;
+    }
+
+    const combined = [...images, ...newItems];
+    const limited = combined.slice(0, MAX_IMAGES_LIMIT);
+    if (combined.length > MAX_IMAGES_LIMIT) {
+      toast.warning(t.maxLimitReached(MAX_IMAGES_LIMIT));
+    }
+    setImages(limited);
+    toast.success(
+      lang === "ar"
+        ? `تمت إضافة ${newItems.length} صفحة من Google Drive بنجاح`
+        : `Added ${newItems.length} pages from Google Drive`,
+    );
   };
 
   const handleSaveApiKey = (key: string) => {
@@ -1410,7 +1656,20 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+        <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
+          {/* زر القائمة الجانبية الموحدة (الأدوات والمشاريع) - ☰ Hamburger Menu */}
+          <NavigationSidebar
+            onNewProject={handleClearAllImages}
+            onOpenGlossary={() => setShowGlossaryModal(true)}
+            onOpenTM={() => setShowTMModal(true)}
+            onOpenTagSettings={() => setShowTagSettingsModal(true)}
+            onOpenHowToUse={() => setShowHowToUseModal(true)}
+            glossaryCount={glossary.length}
+            extendedThinking={extendedThinking}
+            onExtendedThinkingChange={setExtendedThinking}
+            brandName={BRAND_NAME}
+          />
+
           {/* زر تسجيل الدخول والبروفايل */}
           <AuthModal />
 
@@ -1418,7 +1677,7 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
           <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl px-2 h-9">
             <Cpu className="w-4 h-4 text-orange-500 shrink-0" />
             <Select value={selectedModel} onValueChange={setSelectedModel}>
-              <SelectTrigger className="h-7 text-xs font-bold border-0 bg-transparent focus:ring-0 w-52">
+              <SelectTrigger className="h-7 text-xs font-bold border-0 bg-transparent focus:ring-0 w-48 sm:w-52">
                 <SelectValue placeholder={t.selectModel} />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -1440,283 +1699,7 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
                 ))}
               </SelectContent>
             </Select>
-
-            <div className="ml-1 flex items-center gap-1.5 border-l border-border pl-2">
-              <Checkbox
-                checked={extendedThinking}
-                onCheckedChange={(checked) => setExtendedThinking(checked === true)}
-                aria-label="Extended Thinking"
-              />
-              <span className="text-[10px] font-bold whitespace-nowrap">Extended Thinking</span>
-            </div>
           </div>
-
-          {/* زر مشروع جديد */}
-          <Button
-            variant="outline"
-            onClick={handleClearAllImages}
-            className="h-9 gap-1.5 text-xs font-bold px-3 rounded-xl hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
-          >
-            <FolderPlus className="w-4 h-4 text-orange-500" />
-            {t.newProject}
-          </Button>
-
-          {/* زر قاموس المصطلحات المتقدم */}
-          <Button
-            variant="outline"
-            onClick={() => setShowGlossaryModal(true)}
-            className="h-9 gap-1.5 text-xs font-bold px-3 rounded-xl border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10"
-          >
-            <BookOpen className="w-4 h-4 text-orange-500" />
-            {t.glossaryTitle} ({glossary.length})
-          </Button>
-
-          {/* زر ذاكرة الترجمة TM */}
-          <Button
-            variant="outline"
-            onClick={() => setShowTMModal(true)}
-            className="h-9 gap-1.5 text-xs font-bold px-3 rounded-xl border-border text-foreground hover:bg-muted"
-          >
-            <Database className="w-4 h-4 text-orange-500" />
-            {t.tmTitle}
-          </Button>
-
-          {/* إعدادات العلامات */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="h-9 gap-1.5 text-xs font-bold px-3 rounded-xl">
-                <Settings2 className="w-4 h-4 text-orange-500" />
-                {t.tagSettings}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg rounded-2xl max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="text-base font-bold flex items-center justify-between">
-                  <span>{t.tagSettings}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setTags(DEFAULT_TAGS)}
-                    className="text-xs text-muted-foreground hover:text-orange-500 gap-1 h-8 px-2"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" /> {t.resetDefaultTags}
-                  </Button>
-                </DialogTitle>
-              </DialogHeader>
-
-              <div className="space-y-4 py-2">
-                <p className="text-[11px] text-muted-foreground bg-muted/30 p-3 rounded-lg border border-border/50">
-                  {t.tagHint}
-                </p>
-
-                {/* شريط أدوات استيراد وتصدير ملف TXT */}
-                <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-muted/50 rounded-xl border border-border">
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={tagFileInputRef}
-                      type="file"
-                      accept=".txt,text/plain"
-                      onChange={handleImportTagsFile}
-                      className="hidden"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => tagFileInputRef.current?.click()}
-                      className="h-8 gap-1.5 text-xs font-bold border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      {t.uploadTagsTxt}
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleExportTagsFile}
-                      className="h-8 gap-1.5 text-xs font-bold"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      {t.exportTagsTxt}
-                    </Button>
-                  </div>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowTagFormatHelp(!showTagFormatHelp)}
-                    className="h-8 text-xs text-muted-foreground hover:text-orange-500 gap-1 px-2"
-                  >
-                    <Info className="w-3.5 h-3.5" />
-                    {t.tagTxtTemplate}
-                  </Button>
-                </div>
-
-                {/* بطاقة توضيحية لنموذج ملف الـ TXT */}
-                {showTagFormatHelp && (
-                  <div className="p-3 bg-muted/80 rounded-xl border border-border text-xs space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-foreground">
-                        {lang === "ar" ? "صيغة ملف TXT المدعومة:" : "Supported TXT Format:"}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[11px] text-orange-600"
-                        onClick={() => {
-                          const sample = `"": حوار\n(): أفكار\n<>: صراخ\n[]: نظام\n**: هاتف\nNA: راوي\nsfx: مؤثر صوتي\nST: همس`;
-                          navigator.clipboard.writeText(sample);
-                          toast.success(t.copied);
-                        }}
-                      >
-                        <Copy className="w-3 h-3 me-1" />
-                        {t.copyBlock}
-                      </Button>
-                    </div>
-                    <p className="text-muted-foreground text-[11px] leading-relaxed">
-                      {lang === "ar"
-                        ? "اكتب كل علامة في سطر مع وضع نقطتين (:) ثم الشرح أو التصنيف، وسيتم تصنيفها وتحديثها تلقائياً:"
-                        : "Write each tag on a line with a colon (:) and its description. Tags will be auto-classified:"}
-                    </p>
-                    <pre className="bg-background/90 p-2.5 rounded-lg font-mono text-[11px] dir-ltr text-foreground overflow-x-auto border border-border/60">
-                      {`"": حوار
-(): أفكار
-<>: صراخ
-[]: نظام
-**: هاتف
-NA: راوي
-sfx: مؤثر صوتي
-ST: همس`}
-                    </pre>
-                  </div>
-                )}
-
-                {/* قائمة العلامات مع التصنيف */}
-                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
-                  {tags.map((tag, i) => (
-                    <div
-                      key={tag.value || i}
-                      className="flex items-center gap-1.5 bg-muted/40 p-2 rounded-lg text-xs"
-                    >
-                      <div className="flex flex-col w-28 shrink-0">
-                        <span className="font-bold truncate" title={getTagLabel(tag, lang)}>
-                          {getTagLabel(tag, lang)}
-                        </span>
-                        <span className="text-[9px] text-muted-foreground font-mono truncate">
-                          {tag.value}
-                        </span>
-                      </div>
-                      <Input
-                        value={tag.prefix}
-                        onChange={(e) => {
-                          const updated = [...tags];
-                          updated[i]!.prefix = e.target.value;
-                          setTags(updated);
-                        }}
-                        className="h-7 text-xs w-20 dir-ltr font-mono"
-                        placeholder="Prefix"
-                        title="Prefix"
-                      />
-                      <Input
-                        value={tag.suffix}
-                        onChange={(e) => {
-                          const updated = [...tags];
-                          updated[i]!.suffix = e.target.value;
-                          setTags(updated);
-                        }}
-                        className="h-7 text-xs w-16 dir-ltr font-mono"
-                        placeholder="Suffix"
-                        title="Suffix"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteTag(i)}
-                        className="h-7 w-7 text-red-500 shrink-0"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="border-t border-border pt-3 space-y-2">
-                  <Input
-                    placeholder={t.tagName}
-                    value={newTagLabel}
-                    onChange={(e) => setNewTagLabel(e.target.value)}
-                    className="h-8 text-xs"
-                  />
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder={t.tagPrefix}
-                      value={newTagPrefix}
-                      onChange={(e) => setNewTagPrefix(e.target.value)}
-                      className="h-8 text-xs dir-ltr font-mono"
-                    />
-                    <Input
-                      placeholder={t.tagSuffix}
-                      value={newTagSuffix}
-                      onChange={(e) => setNewTagSuffix(e.target.value)}
-                      className="h-8 text-xs dir-ltr font-mono"
-                    />
-                  </div>
-                  <Button
-                    onClick={handleAddCustomTag}
-                    className="w-full h-8 text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white"
-                  >
-                    <Plus className="w-3.5 h-3.5 me-1" /> {t.add}
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* نافذة كيفية الاستخدام (Tutorial) */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-9 gap-1 text-xs font-bold px-2 rounded-xl text-muted-foreground hover:text-orange-500"
-              >
-                <HelpCircle className="w-4 h-4" />
-                {t.howToUse}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg rounded-2xl max-h-[80vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="text-lg font-bold text-orange-600">
-                  {t.howToTitle}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
-                <p>{t.howToIntro}</p>
-                <ul className="list-disc list-inside space-y-2">
-                  <li>
-                    <strong>{t.howToStep1a}</strong> {t.howToStep1b}
-                  </li>
-                  <li>
-                    <strong>{t.howToStep2a}</strong> {t.howToStep2b}
-                  </li>
-                  <li>
-                    <strong>{t.howToStep3a}</strong> {t.howToStep3b}
-                  </li>
-                </ul>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* زر ديسكورد مع مسار SVG نظيف */}
-          <a
-            href="https://discord.gg/nuaqTHvx"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="h-9 w-9 rounded-xl inline-flex items-center justify-center border border-input bg-background hover:bg-[#5865F2] hover:text-white hover:border-[#5865F2] transition-colors"
-            title={t.joinDiscord}
-          >
-            <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .079.009c.12.098.245.195.372.288a.077.077 0 0 1-.006.128 12.299 12.299 0 0 1-1.873.891.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
-            </svg>
-          </a>
 
           <Button
             variant="outline"
@@ -1847,6 +1830,213 @@ ST: همس`}
         </DialogContent>
       </Dialog>
 
+      {/* نافذة إعدادات العلامات المستقلة */}
+      <Dialog open={showTagSettingsModal} onOpenChange={setShowTagSettingsModal}>
+        <DialogContent className="max-w-lg rounded-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center justify-between">
+              <span>{t.tagSettings}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTags(DEFAULT_TAGS)}
+                className="text-xs text-muted-foreground hover:text-orange-500 gap-1 h-8 px-2"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> {t.resetDefaultTags}
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <p className="text-[11px] text-muted-foreground bg-muted/30 p-3 rounded-lg border border-border/50">
+              {t.tagHint}
+            </p>
+
+            {/* شريط أدوات استيراد وتصدير ملف TXT */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-muted/50 rounded-xl border border-border">
+              <div className="flex items-center gap-2">
+                <input
+                  ref={tagFileInputRef}
+                  type="file"
+                  accept=".txt,text/plain"
+                  onChange={handleImportTagsFile}
+                  className="hidden"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => tagFileInputRef.current?.click()}
+                  className="h-8 gap-1.5 text-xs font-bold border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  {t.uploadTagsTxt}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportTagsFile}
+                  className="h-8 gap-1.5 text-xs font-bold"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {t.exportTagsTxt}
+                </Button>
+              </div>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowTagFormatHelp(!showTagFormatHelp)}
+                className="h-8 text-xs text-muted-foreground hover:text-orange-500 gap-1 px-2"
+              >
+                <Info className="w-3.5 h-3.5" />
+                {t.tagTxtTemplate}
+              </Button>
+            </div>
+
+            {/* بطاقة توضيحية لنموذج ملف الـ TXT */}
+            {showTagFormatHelp && (
+              <div className="p-3 bg-muted/80 rounded-xl border border-border text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-foreground">
+                    {lang === "ar" ? "صيغة ملف TXT المدعومة:" : "Supported TXT Format:"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[11px] text-orange-600"
+                    onClick={() => {
+                      const sample = `"": حوار\n(): أفكار\n<>: صراخ\n[]: نظام\n**: هاتف\nNA: راوي\nsfx: مؤثر صوتي\nST: همس`;
+                      navigator.clipboard.writeText(sample);
+                      toast.success(t.copied);
+                    }}
+                  >
+                    <Copy className="w-3 h-3 me-1" />
+                    {t.copyBlock}
+                  </Button>
+                </div>
+                <p className="text-muted-foreground text-[11px] leading-relaxed">
+                  {lang === "ar"
+                    ? "اكتب كل علامة في سطر مع وضع نقطتين (:) ثم الشرح أو التصنيف، وسيتم تصنيفها وتحديثها تلقائياً:"
+                    : "Write each tag on a line with a colon (:) and its description. Tags will be auto-classified:"}
+                </p>
+                <pre className="bg-background/90 p-2.5 rounded-lg font-mono text-[11px] dir-ltr text-foreground overflow-x-auto border border-border/60">
+                  {`"": حوار
+(): أفكار
+<>: صراخ
+[]: نظام
+**: هاتف
+NA: راوي
+sfx: مؤثر صوتي
+ST: همس`}
+                </pre>
+              </div>
+            )}
+
+            {/* قائمة العلامات مع التصنيف */}
+            <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+              {tags.map((tag, i) => (
+                <div
+                  key={tag.value || i}
+                  className="flex items-center gap-1.5 bg-muted/40 p-2 rounded-lg text-xs"
+                >
+                  <div className="flex flex-col w-28 shrink-0">
+                    <span className="font-bold truncate" title={getTagLabel(tag, lang)}>
+                      {getTagLabel(tag, lang)}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground font-mono truncate">
+                      {tag.value}
+                    </span>
+                  </div>
+                  <Input
+                    value={tag.prefix}
+                    onChange={(e) => {
+                      const updated = [...tags];
+                      updated[i]!.prefix = e.target.value;
+                      setTags(updated);
+                    }}
+                    className="h-7 text-xs w-20 dir-ltr font-mono"
+                    placeholder="Prefix"
+                    title="Prefix"
+                  />
+                  <Input
+                    value={tag.suffix}
+                    onChange={(e) => {
+                      const updated = [...tags];
+                      updated[i]!.suffix = e.target.value;
+                      setTags(updated);
+                    }}
+                    className="h-7 text-xs w-16 dir-ltr font-mono"
+                    placeholder="Suffix"
+                    title="Suffix"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteTag(i)}
+                    className="h-7 w-7 text-red-500 shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-border pt-3 space-y-2">
+              <Input
+                placeholder={t.tagName}
+                value={newTagLabel}
+                onChange={(e) => setNewTagLabel(e.target.value)}
+                className="h-8 text-xs"
+              />
+              <div className="flex gap-2">
+                <Input
+                  placeholder={t.tagPrefix}
+                  value={newTagPrefix}
+                  onChange={(e) => setNewTagPrefix(e.target.value)}
+                  className="h-8 text-xs dir-ltr font-mono"
+                />
+                <Input
+                  placeholder={t.tagSuffix}
+                  value={newTagSuffix}
+                  onChange={(e) => setNewTagSuffix(e.target.value)}
+                  className="h-8 text-xs dir-ltr font-mono"
+                />
+              </div>
+              <Button
+                onClick={handleAddCustomTag}
+                className="w-full h-8 text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                <Plus className="w-3.5 h-3.5 me-1" /> {t.add}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* نافذة كيفية الاستخدام (Tutorial) المستقلة */}
+      <Dialog open={showHowToUseModal} onOpenChange={setShowHowToUseModal}>
+        <DialogContent className="max-w-lg rounded-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-orange-600">{t.howToTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
+            <p>{t.howToIntro}</p>
+            <ul className="list-disc list-inside space-y-2">
+              <li>
+                <strong>{t.howToStep1a}</strong> {t.howToStep1b}
+              </li>
+              <li>
+                <strong>{t.howToStep2a}</strong> {t.howToStep2b}
+              </li>
+              <li>
+                <strong>{t.howToStep3a}</strong> {t.howToStep3b}
+              </li>
+            </ul>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* نافذة إعدادات ترقيم الصفحات */}
       <Dialog open={showPageNumberModal} onOpenChange={setShowPageNumberModal}>
         <DialogContent className="sm:max-w-md rounded-2xl">
@@ -1935,6 +2125,18 @@ ST: همس`}
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* شريط تبويبات مساحات العمل والمشاريع المتعددة */}
+      <WorkspaceTabBar
+        workspaces={workspaces}
+        activeTabId={activeTabId}
+        onSelectTab={handleSelectTab}
+        onCreateTab={handleCreateTab}
+        onCloseTab={handleCloseTab}
+        onRenameTab={handleRenameTab}
+        onDuplicateTab={handleDuplicateTab}
+        isAnalyzing={isAnalyzing}
+      />
 
       {/* Bar for images */}
       {images.length > 0 && (
@@ -2050,6 +2252,23 @@ ST: همس`}
                     {selectedImageIds.length}
                   </span>
                 )}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDriveModal(true)}
+                title={
+                  lang === "ar"
+                    ? "استيراد صور إضافية من Google Drive أو رابط"
+                    : "Import from Google Drive"
+                }
+                className="text-xs font-bold gap-1 rounded-xl h-8 border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 shadow-sm"
+              >
+                <CloudDownload className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">
+                  {lang === "ar" ? "إضافة من درايف" : "Drive"}
+                </span>
               </Button>
 
               <Button
@@ -2973,6 +3192,13 @@ ST: همس`}
         tags={tags}
         initialSelectedText={splitInitialSelection}
         onConfirmSplit={handleConfirmSplitBubble}
+      />
+
+      {/* Google Drive / Cloud Import Modal */}
+      <DriveImportModal
+        open={showDriveModal}
+        onOpenChange={setShowDriveModal}
+        onImagesImported={handleDriveImagesImported}
       />
     </div>
   );

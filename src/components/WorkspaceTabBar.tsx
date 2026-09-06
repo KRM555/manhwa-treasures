@@ -87,8 +87,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
       return;
     }
 
-    const hasData =
-      tab.images.length > 0 || Object.keys(tab.resultsMap || {}).length > 0;
+    const hasData = tab.images.length > 0 || Object.keys(tab.resultsMap || {}).length > 0;
 
     if (hasData) {
       setTabToClose(tab);
@@ -122,8 +121,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
             {workspaces.map((tab, idx) => {
               const isActive = tab.id === activeTabId;
               const pageCount = tab.images?.length || 0;
-              const hasTranslations =
-                Object.keys(tab.resultsMap || {}).length > 0;
+              const hasTranslations = Object.keys(tab.resultsMap || {}).length > 0;
               const isCurrentEditing = editingTabId === tab.id;
 
               return (
@@ -155,10 +153,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
 
                   {/* Tab Title (or Inline Edit) */}
                   {isCurrentEditing ? (
-                    <div
-                      className="flex items-center gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <Input
                         ref={editInputRef}
                         value={tempTabName}
@@ -182,9 +177,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
                   {pageCount > 0 && !isCurrentEditing && (
                     <span
                       className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full shrink-0 ${
-                        isActive
-                          ? "bg-orange-600 text-white"
-                          : "bg-muted text-muted-foreground"
+                        isActive ? "bg-orange-600 text-white" : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {t.tabPagesCount(pageCount)}
@@ -204,9 +197,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
                       {workspaces.length > 1 && (
                         <button
                           onClick={(e) => handleRequestClose(tab, e)}
-                          title={
-                            lang === "ar" ? "إغلاق النافذة" : "Close window"
-                          }
+                          title={lang === "ar" ? "إغلاق النافذة" : "Close window"}
                           className="p-0.5 rounded hover:bg-red-500/20 hover:text-red-500 transition-colors"
                         >
                           <X className="w-3 h-3" />
@@ -234,10 +225,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
       </div>
 
       {/* Confirmation Dialog on Closing Tab with content */}
-      <Dialog
-        open={Boolean(tabToClose)}
-        onOpenChange={(open) => !open && setTabToClose(null)}
-      >
+      <Dialog open={Boolean(tabToClose)} onOpenChange={(open) => !open && setTabToClose(null)}>
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-sm font-bold text-red-500">
@@ -245,14 +233,10 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
               <span>{lang === "ar" ? "تأكيد إغلاق النافذة" : "Confirm Close"}</span>
             </DialogTitle>
           </DialogHeader>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            {t.closeTabConfirm}
-          </p>
+          <p className="text-xs text-muted-foreground leading-relaxed">{t.closeTabConfirm}</p>
           {tabToClose && (
             <div className="p-2.5 bg-muted/40 rounded-xl border border-border/60 text-xs flex justify-between items-center">
-              <span className="font-bold text-foreground">
-                {tabToClose.name}
-              </span>
+              <span className="font-bold text-foreground">{tabToClose.name}</span>
               <span className="text-muted-foreground text-[11px]">
                 {t.tabPagesCount(tabToClose.images?.length || 0)}
               </span>

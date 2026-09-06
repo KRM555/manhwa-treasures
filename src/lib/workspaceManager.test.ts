@@ -57,9 +57,7 @@ describe("workspaceManager tests", () => {
     const ws2 = createDefaultWorkspace("w2", "فصل 11");
     ws1.images = [{ id: "img-1", url: "data:test", name: "01.jpg" }];
     ws1.resultsMap = {
-      "img-1": [
-        { id: "b1", originalText: "Hello", translatedText: "مرحبا", category: "dialogue" },
-      ],
+      "img-1": [{ id: "b1", originalText: "Hello", translatedText: "مرحبا", category: "dialogue" }],
     };
 
     saveWorkspacesToStorage([ws1, ws2], "w2");

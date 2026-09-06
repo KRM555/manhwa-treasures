@@ -1,6 +1,16 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { TranslationConfig } from "@/types/manga";
-import { Upload, FileArchive, Sparkles } from "lucide-react";
+import {
+  Upload,
+  FileArchive,
+  Sparkles,
+  CloudDownload,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  HelpCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -20,6 +30,7 @@ import {
   filterZipEntries,
   compareImageFilenames,
 } from "@/lib/zipUtils";
+import { DriveImportModal } from "./DriveImportModal";
 
 interface UploadZoneProps {
   imagePreview: string | null;
@@ -43,7 +54,9 @@ export function UploadZone({
   onAnalyze,
 }: UploadZoneProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const [showDriveModal, setShowDriveModal] = useState(false);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
   const processFiles = async (files: FileList | File[]) => {
     const fileList = Array.from(files);
@@ -208,7 +221,7 @@ export function UploadZone({
           onChange={(e) => e.target.files && processFiles(e.target.files)}
         />
 
-        <div className="flex justify-center gap-3">
+        <div className="flex flex-wrap justify-center gap-3">
           <Button
             onClick={() => fileInputRef.current?.click()}
             className="bg-orange-600 hover:bg-orange-700 text-white font-bold gap-2 text-sm px-6 h-11 rounded-xl shadow-md"
@@ -216,72 +229,144 @@ export function UploadZone({
             <FileArchive className="w-4 h-4" />
             {t.uploadBtn}
           </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowDriveModal(true)}
+            className="border-orange-500/40 hover:bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold gap-2 text-sm px-5 h-11 rounded-xl shadow-sm"
+          >
+            <CloudDownload className="w-4 h-4 text-orange-500" />
+            {lang === "ar" ? "رابط Google Drive / سحابي" : "Google Drive Link"}
+          </Button>
         </div>
+
+        <DriveImportModal
+          open={showDriveModal}
+          onOpenChange={setShowDriveModal}
+          onImagesImported={(importedImages) => {
+            if (onMultipleImagesSelected) {
+              onMultipleImagesSelected(importedImages);
+            } else if (importedImages.length > 0) {
+              onImageSelected(importedImages[0]!.url, importedImages[0]!.name);
+            }
+          }}
+        />
       </Card>
 
-      <Card className="p-6 border-border rounded-2xl space-y-6 bg-card">
-        <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border pb-3">
-          <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-          {t.controlsTitle}
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-muted-foreground uppercase">
-              {t.targetLang}
-            </label>
-            <Select
-              value={config.targetLanguage}
-              onValueChange={(val) => onConfigChange({ targetLanguage: val })}
-            >
-              <SelectTrigger className="h-10 text-xs font-bold">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ar">{t.langArabic}</SelectItem>
-                <SelectItem value="en">{t.langEnglish}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-start gap-3 bg-muted/20 p-3 rounded-xl border border-border/50">
-              <Checkbox
-                id="sfx"
-                checked={config.extractSFX}
-                onCheckedChange={(checked) => onConfigChange({ extractSFX: !!checked })}
-                className="mt-0.5"
-              />
-              <div className="space-y-0.5">
-                <label
-                  htmlFor="sfx"
-                  className="text-xs font-bold cursor-pointer text-foreground block"
-                >
-                  {t.sfxLabel}
-                </label>
-                <p className="text-[11px] text-muted-foreground">{t.sfxSub}</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 bg-muted/20 p-3 rounded-xl border border-border/50">
-              <Checkbox
-                id="vertical"
-                checked={config.detectVerticalText}
-                onCheckedChange={(checked) => onConfigChange({ detectVerticalText: !!checked })}
-                className="mt-0.5"
-              />
-              <div className="space-y-0.5">
-                <label
-                  htmlFor="vertical"
-                  className="text-xs font-bold cursor-pointer text-foreground block"
-                >
-                  {t.verticalLabel}
-                </label>
-                <p className="text-[11px] text-muted-foreground">{t.verticalSub}</p>
-              </div>
-            </div>
-          </div>
+      <Card className="p-5 sm:p-6 border-border rounded-2xl space-y-5 bg-card">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+            {t.controlsTitle}
+          </h3>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+            className={`h-8 px-2.5 text-xs font-bold gap-1.5 rounded-xl transition-colors ${
+              showAdvancedSettings
+                ? "bg-orange-500/15 text-orange-600 dark:text-orange-400"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-orange-500" />
+            <span>{lang === "ar" ? "إعدادات متقدمة" : "Advanced"}</span>
+            {showAdvancedSettings ? (
+              <ChevronUp className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5" />
+            )}
+          </Button>
         </div>
+
+        {/* الإعداد الأساسي: لغة الترجمة */}
+        <div className="space-y-2 max-w-sm">
+          <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+            <span>{t.targetLang}</span>
+            <span className="text-[10px] text-orange-600 dark:text-orange-400 font-semibold lowercase">
+              ({lang === "ar" ? "إعداد أساسي" : "required"})
+            </span>
+          </label>
+          <Select
+            value={config.targetLanguage}
+            onValueChange={(val) => onConfigChange({ targetLanguage: val })}
+          >
+            <SelectTrigger className="h-10 text-xs font-bold rounded-xl">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ar">{t.langArabic}</SelectItem>
+              <SelectItem value="en">{t.langEnglish}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* لوحة الإعدادات المتقدمة (قابلة للفتح والإغلاق) */}
+        {showAdvancedSettings && (
+          <div className="p-4 rounded-xl bg-muted/20 border border-border/70 space-y-3 animate-in fade-in-50 duration-200">
+            <div className="text-[11px] font-bold text-muted-foreground flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5 text-orange-500" />
+              <span>
+                {lang === "ar"
+                  ? "خيارات دقيقة لاستخراج النصوص والمؤثرات الصوتية:"
+                  : "Granular text extraction & OCR options:"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              {/* SFX */}
+              <div className="flex items-start gap-3 bg-card p-3 rounded-xl border border-border/70 shadow-sm">
+                <Checkbox
+                  id="sfx"
+                  checked={config.extractSFX}
+                  onCheckedChange={(checked) => onConfigChange({ extractSFX: !!checked })}
+                  className="mt-0.5"
+                />
+                <div className="space-y-1">
+                  <label
+                    htmlFor="sfx"
+                    className="text-xs font-bold cursor-pointer text-foreground flex items-center gap-1.5"
+                  >
+                    <span>{t.sfxLabel}</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-orange-100 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400 font-normal">
+                      SFX
+                    </span>
+                  </label>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {lang === "ar"
+                      ? "استخراج المؤثرات الصوتية والكلمات خارج الفقاعات وتصنيفها في ملف التصدير."
+                      : t.sfxSub}
+                  </p>
+                </div>
+              </div>
+
+              {/* Vertical Text */}
+              <div className="flex items-start gap-3 bg-card p-3 rounded-xl border border-border/70 shadow-sm">
+                <Checkbox
+                  id="vertical"
+                  checked={config.detectVerticalText}
+                  onCheckedChange={(checked) => onConfigChange({ detectVerticalText: !!checked })}
+                  className="mt-0.5"
+                />
+                <div className="space-y-1">
+                  <label
+                    htmlFor="vertical"
+                    className="text-xs font-bold cursor-pointer text-foreground flex items-center gap-1.5"
+                  >
+                    <span>{t.verticalLabel}</span>
+                  </label>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {lang === "ar"
+                      ? "تحسين ترتيب الأحرف والكلمات المكتوبة بشكل عمودي (رأسي) في المانجا اليابانية."
+                      : t.verticalSub}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="pt-2 flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-xs text-muted-foreground flex items-center gap-1">

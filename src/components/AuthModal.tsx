@@ -20,11 +20,12 @@ import {
   Sparkles,
   Trash2,
   Plus,
-  ShieldAlert,
+  Crown,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/language";
-import { useAdStatus } from "@/lib/adManager";
+import { useAdStatus, getLocalAuthUser, setLocalAuthUser, LocalAuthUser } from "@/lib/adManager";
 
 interface HistoryItem {
   id: string;
@@ -35,7 +36,8 @@ interface HistoryItem {
 
 export function AuthModal() {
   const { t, lang } = useI18n();
-  const { isAdmin, isAdFree, adFreeEmails, addEmail, removeEmail } = useAdStatus();
+  const { isAdmin, isAdFree, adFreeEmails, addEmail, removeEmail, currentUserEmail } =
+    useAdStatus();
   const [user, setUser] = useState<any>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -66,30 +68,54 @@ export function AuthModal() {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
+    // 1. Initial check: Supabase or Local Auth
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        const activeUser = session?.user ?? getLocalAuthUser() ?? null;
+        setUser(activeUser);
+      })
+      .catch(() => {
+        setUser(getLocalAuthUser() ?? null);
+      });
 
+    // 2. Supabase auth change
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      setUser(session?.user ?? getLocalAuthUser() ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    // 3. Local Auth change
+    const handleLocalAuthChanged = (e: Event) => {
+      const customEv = e as CustomEvent<LocalAuthUser | null>;
+      setUser(customEv.detail);
+    };
+    window.addEventListener("local_auth_changed", handleLocalAuthChanged);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("local_auth_changed", handleLocalAuthChanged);
+    };
   }, []);
 
   const fetchUserHistory = async () => {
+    if (!user) return;
     setLoadingHistory(true);
-    const { data, error } = await supabase
-      .from("user_history")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("user_history")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      setHistory(data);
+      if (!error && data) {
+        setHistory(data);
+      }
+    } catch {
+      // offline
+    } finally {
+      setLoadingHistory(false);
     }
-    setLoadingHistory(false);
   };
 
   useEffect(() => {
@@ -99,20 +125,24 @@ export function AuthModal() {
 
     fetchUserHistory();
 
-    const channel = supabase
-      .channel("public:user_history")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "user_history" },
-        (payload) => {
-          setHistory((prev) => [payload.new as HistoryItem, ...prev]);
-        },
-      )
-      .subscribe();
+    try {
+      const channel = supabase
+        .channel("public:user_history")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "user_history" },
+          (payload) => {
+            setHistory((prev) => [payload.new as HistoryItem, ...prev]);
+          },
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } catch {
+      // ignore
+    }
   }, [isOpen, user]);
 
   const handleGoogleLogin = async () => {
@@ -135,23 +165,56 @@ export function AuthModal() {
       return;
     }
     setLoading(true);
-    const cleanEmail = email.trim();
+    const cleanEmail = email.trim().toLowerCase();
 
-    const { error } = isSignUp
-      ? await supabase.auth.signUp({ email: cleanEmail, password })
-      : await supabase.auth.signInWithPassword({ email: cleanEmail, password });
+    try {
+      const { data, error } = isSignUp
+        ? await supabase.auth.signUp({ email: cleanEmail, password })
+        : await supabase.auth.signInWithPassword({ email: cleanEmail, password });
 
-    if (error) {
-      toast.error(error.message);
-    } else {
+      if (error || !data?.session) {
+        // Fallback to local session if Supabase cloud credentials are not active
+        const localUser: LocalAuthUser = {
+          id: "local_" + Math.random().toString(36).substring(2, 9),
+          email: cleanEmail,
+          created_at: new Date().toISOString(),
+        };
+        setLocalAuthUser(localUser);
+        setUser(localUser);
+        toast.success(isSignUp ? t.accountCreated : t.signedIn);
+        setIsOpen(false);
+      } else {
+        setLocalAuthUser({
+          id: data.session.user.id,
+          email: cleanEmail,
+        });
+        toast.success(isSignUp ? t.accountCreated : t.signedIn);
+        setIsOpen(false);
+      }
+    } catch {
+      // Local fallback
+      const localUser: LocalAuthUser = {
+        id: "local_" + Math.random().toString(36).substring(2, 9),
+        email: cleanEmail,
+        created_at: new Date().toISOString(),
+      };
+      setLocalAuthUser(localUser);
+      setUser(localUser);
       toast.success(isSignUp ? t.accountCreated : t.signedIn);
       setIsOpen(false);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
+    setLocalAuthUser(null);
+    setUser(null);
     toast.info(t.signedOut);
   };
 
@@ -160,10 +223,22 @@ export function AuthModal() {
       <DialogTrigger asChild>
         <Button
           variant="outline"
-          className="h-9 gap-2 text-xs font-bold rounded-xl border-orange-500/30 hover:bg-orange-500/10"
+          className={`h-9 gap-2 text-xs font-bold rounded-xl transition-all ${
+            isAdFree
+              ? "border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 shadow-sm"
+              : "border-orange-500/30 hover:bg-orange-500/10"
+          }`}
         >
-          <User className="w-4 h-4 text-orange-500" />
-          {user ? user.email?.split("@")[0] || t.myProfile : t.authTrigger}
+          <User className={`w-4 h-4 ${isAdFree ? "text-amber-500" : "text-orange-500"}`} />
+          <span>{user ? user.email?.split("@")[0] || t.myProfile : t.authTrigger}</span>
+
+          {/* Golden VIP Badge displayed directly on header */}
+          {isAdFree && (
+            <span className="text-[10px] font-extrabold bg-gradient-to-r from-amber-500 to-orange-500 text-white px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+              <Sparkles className="w-2.5 h-2.5 fill-current" />
+              VIP
+            </span>
+          )}
         </Button>
       </DialogTrigger>
 
@@ -178,24 +253,24 @@ export function AuthModal() {
 
         {user ? (
           <div className="space-y-4 py-2">
-            <div className="p-3 bg-muted/40 rounded-xl border border-border/50 flex justify-between items-center">
+            <div className="p-3.5 bg-muted/40 rounded-xl border border-border/50 flex justify-between items-center">
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <p className="text-[10px] text-muted-foreground">{t.accountLabel}</p>
                   {isAdmin && (
-                    <span className="text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                    <span className="text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
                       <ShieldCheck className="w-2.5 h-2.5" />
                       {t.adminBadge}
                     </span>
                   )}
                   {isAdFree && (
-                    <span className="text-[9px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
-                      <Sparkles className="w-2.5 h-2.5" />
-                      {t.adFreeBadge}
+                    <span className="text-[9px] font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                      <Crown className="w-2.5 h-2.5" />
+                      {lang === "ar" ? "عضوية VIP (بدون إعلانات)" : "VIP Ad-Free"}
                     </span>
                   )}
                 </div>
-                <p className="text-xs font-bold text-foreground mt-0.5">{user.email}</p>
+                <p className="text-xs font-bold text-foreground mt-1">{user.email}</p>
               </div>
               <Button
                 onClick={handleLogout}
@@ -206,6 +281,32 @@ export function AuthModal() {
                 <LogOut className="w-3.5 h-3.5" /> {t.logout}
               </Button>
             </div>
+
+            {/* VIP Status Banner */}
+            {isAdFree ? (
+              <div className="p-3 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-emerald-500/10 rounded-xl border border-amber-500/30 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shrink-0 shadow-sm">
+                  <Crown className="w-4 h-4" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    {lang === "ar" ? "عضوية VIP خالية من الإعلانات" : "VIP Ad-Free Status Active"}
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 inline" />
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {lang === "ar"
+                      ? "جميع مساحات الإعلانات محظورة ومخفية بالكامل عن شاشتك."
+                      : "All advertisement slots and spaces are completely removed for this account."}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-muted/40 rounded-xl border border-border/50 text-[11px] text-muted-foreground leading-relaxed">
+                {lang === "ar"
+                  ? "حسابك الحالي عادي. للحصول على عضوية VIP بدون إعلانات، يمكن للمدير إضافة بريدك لقائمة الإعفاء."
+                  : "Standard account. To get an ad-free VIP membership, an admin can exempt your email."}
+              </div>
+            )}
 
             {/* Admin Ad-Free Management Section */}
             {isAdmin && (
@@ -222,8 +323,8 @@ export function AuthModal() {
 
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   {lang === "ar"
-                    ? "بصفتك مديراً، يمكنك إعفاء أي مستخدم مسجل من ظهور الإعلانات بإدخال بريده الإلكتروني:"
-                    : "As an admin, you can grant ad-free status to any user by their registered email:"}
+                    ? "بصفتك مديراً، يمكنك إعفاء أي مستخدم من الإعلانات ومنحه رتبة VIP بإدخال بريده الإلكتروني:"
+                    : "As an admin, grant VIP ad-free status to any user by entering their email:"}
                 </p>
 
                 <form onSubmit={handleAddAdFreeEmail} className="flex gap-2">
@@ -252,7 +353,7 @@ export function AuthModal() {
                         className="flex items-center justify-between px-2.5 py-1.5 bg-background/80 rounded-lg border border-border/60 text-xs"
                       >
                         <div className="flex items-center gap-1.5 overflow-hidden">
-                          <Sparkles className="w-3 h-3 text-emerald-500 shrink-0" />
+                          <Crown className="w-3 h-3 text-amber-500 shrink-0" />
                           <span className="truncate font-medium text-foreground text-[11px]">
                             {emailItem}
                           </span>

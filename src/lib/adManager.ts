@@ -1,15 +1,46 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
-const STORAGE_KEY_EXEMPT = "manga_ad_exempt_emails";
-const STORAGE_KEY_ADMINS = "manga_custom_admins";
+export const STORAGE_KEY_EXEMPT = "manga_ad_exempt_emails";
+export const STORAGE_KEY_ADMINS = "manga_custom_admins";
+export const STORAGE_KEY_LOCAL_USER = "manga_local_auth_user";
 
-// Site owner / default super admin
-export const DEFAULT_ADMIN_EMAILS = ["am1relgohary2002@gmail.com"];
+// Site owners / default super admins (Always exempt and have full admin privileges)
+export const DEFAULT_ADMIN_EMAILS = ["am1relgohary2002@gmail.com", "kareemelgohary01@gmail.com"];
 
 // Helper to normalize email
 export function normalizeEmail(email?: string | null): string {
   return (email || "").trim().toLowerCase();
+}
+
+export interface LocalAuthUser {
+  id: string;
+  email: string;
+  name?: string;
+  created_at?: string;
+}
+
+// Read current local user session
+export function getLocalAuthUser(): LocalAuthUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_LOCAL_USER);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+// Set local user session
+export function setLocalAuthUser(user: LocalAuthUser | null): void {
+  if (typeof window === "undefined") return;
+  if (!user) {
+    localStorage.removeItem(STORAGE_KEY_LOCAL_USER);
+  } else {
+    localStorage.setItem(STORAGE_KEY_LOCAL_USER, JSON.stringify(user));
+  }
+  window.dispatchEvent(new CustomEvent("local_auth_changed", { detail: user }));
 }
 
 // Read saved list of exempt emails
@@ -91,27 +122,40 @@ export function useAdStatus() {
   const [isAdFree, setIsAdFree] = useState<boolean>(false);
 
   useEffect(() => {
-    // 1. Initial auth check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const email = session?.user?.email ?? null;
-      setCurrentUserEmail(email);
-      const admin = isAdminEmail(email);
+    const checkActiveUser = (email: string | null) => {
+      // If no Supabase email, fall back to local stored session
+      const effectiveEmail = email || getLocalAuthUser()?.email || null;
+      setCurrentUserEmail(effectiveEmail);
+      const admin = isAdminEmail(effectiveEmail);
       setIsAdmin(admin);
-      setIsAdFree(isEmailAdFree(email));
-    });
+      setIsAdFree(isEmailAdFree(effectiveEmail));
+    };
+
+    // 1. Initial auth check
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        checkActiveUser(session?.user?.email ?? null);
+      })
+      .catch(() => {
+        checkActiveUser(null);
+      });
 
     // 2. Listen to auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      const email = session?.user?.email ?? null;
-      setCurrentUserEmail(email);
-      const admin = isAdminEmail(email);
-      setIsAdmin(admin);
-      setIsAdFree(isEmailAdFree(email));
+      checkActiveUser(session?.user?.email ?? null);
     });
 
-    // 3. Listen to ad exemption list updates
+    // 3. Listen to local auth updates
+    const handleLocalAuthChanged = (e: Event) => {
+      const customEv = e as CustomEvent<LocalAuthUser | null>;
+      checkActiveUser(customEv.detail?.email ?? null);
+    };
+    window.addEventListener("local_auth_changed", handleLocalAuthChanged);
+
+    // 4. Listen to ad exemption list updates
     const handleExemptionsChanged = (e: Event) => {
       const customEv = e as CustomEvent<string[]>;
       const nextList = customEv.detail || getAdFreeEmails();
@@ -121,10 +165,12 @@ export function useAdStatus() {
     window.addEventListener("ad_exemptions_changed", handleExemptionsChanged);
     window.addEventListener("storage", () => {
       setAdFreeEmails(getAdFreeEmails());
+      checkActiveUser(null);
     });
 
     return () => {
       subscription.unsubscribe();
+      window.removeEventListener("local_auth_changed", handleLocalAuthChanged);
       window.removeEventListener("ad_exemptions_changed", handleExemptionsChanged);
     };
   }, []);
