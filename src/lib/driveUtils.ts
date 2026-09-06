@@ -17,25 +17,27 @@ export function parseDriveOrDirectLink(url: string): ParsedLinkInfo | null {
   // 1. Google Drive Folder
   // e.g. https://drive.google.com/drive/folders/1aBcDeFgHiJkLmNoPqRsTuVwXyZ?usp=sharing
   // e.g. https://drive.google.com/drive/u/0/folders/1aBcDeFgHiJkLmNoPqRsTuVwXyZ
+  // e.g. https://drive.google.com/folders/1aBcDeFgHiJkLmNoPqRsTuVwXyZ
   const driveFolderMatch = trimmed.match(
-    /drive\.google\.com\/(?:drive\/(?:u\/\d+\/)?folders\/)([a-zA-Z0-9_-]+)/i,
+    /drive\.google\.com\/(?:drive\/(?:u\/\d+\/)?folders\/|folders\/)([a-zA-Z0-9_-]+)/i,
   );
   if (driveFolderMatch && driveFolderMatch[1]) {
     const folderId = driveFolderMatch[1];
     return {
       type: "drive_folder",
       id: folderId,
-      directDownloadUrl: `https://drive.google.com/embeddedfolderview?id=${folderId}#list`,
+      directDownloadUrl: `https://drive.google.com/drive/folders/${folderId}`,
       originalUrl: trimmed,
     };
   }
 
   // 2. Google Drive File
   // e.g. https://drive.google.com/file/d/1aBcDeFgHiJkLmNoPqRsTuVwXyZ/view?usp=sharing
+  // e.g. https://drive.google.com/file/u/0/d/1aBcDeFgHiJkLmNoPqRsTuVwXyZ/view
   // e.g. https://drive.google.com/open?id=1aBcDeFgHiJkLmNoPqRsTuVwXyZ
   // e.g. https://drive.google.com/uc?id=1aBcDeFgHiJkLmNoPqRsTuVwXyZ
   const driveFileMatch =
-    trimmed.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i) ||
+    trimmed.match(/drive\.google\.com\/(?:file\/(?:u\/\d+\/)?d\/)([a-zA-Z0-9_-]+)/i) ||
     trimmed.match(/drive\.google\.com\/(?:open|uc)\?(?:[a-zA-Z0-9_=&-]*&)?id=([a-zA-Z0-9_-]+)/i) ||
     trimmed.match(/docs\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
 
@@ -44,7 +46,7 @@ export function parseDriveOrDirectLink(url: string): ParsedLinkInfo | null {
     return {
       type: "drive_file",
       id: fileId,
-      directDownloadUrl: `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`,
+      directDownloadUrl: `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
       originalUrl: trimmed,
     };
   }
