@@ -1227,12 +1227,12 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
     >
       {/* Header */}
       <header className="mb-6 flex flex-col xl:flex-row items-start xl:items-center justify-between border-b border-border pb-4 gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3.5 sm:gap-4">
           <img
             id="app-header-logo"
             src="/logo.png"
             alt={`${BRAND_NAME} Logo`}
-            className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl object-cover shadow-sm border border-orange-200 dark:border-orange-900/50 shrink-0 bg-white"
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl object-cover shadow-md shadow-orange-500/10 border-2 border-orange-200 dark:border-orange-900/60 shrink-0 bg-white p-0.5"
             referrerPolicy="no-referrer"
           />
           <div>

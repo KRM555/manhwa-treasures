@@ -97,7 +97,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://manhwa-treasures.vercel.app/" },
-      { property: "og:image", content: "/logo.png" },
+      {
+        property: "og:image",
+        content: "https://manhwa-treasures.vercel.app/logo.png",
+      },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
       {
@@ -109,7 +112,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "Extract, translate, and format webtoon and manga scripts with Gemini-powered OCR, tag formatting, glossaries, and DOCX export.",
       },
-      { name: "twitter:image", content: "/logo.png" },
+      {
+        name: "twitter:image",
+        content: "https://manhwa-treasures.vercel.app/logo.png",
+      },
       { name: "theme-color", content: "#ea580c" },
       {
         name: "google-site-verification",

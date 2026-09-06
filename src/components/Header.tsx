@@ -6,11 +6,11 @@ export const Header: React.FC = () => {
   return (
     <header className="border-b border-border/40 bg-background/80 backdrop-blur-md sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3.5">
           <img
             src="/logo.png"
             alt="Manhwa TransTool Studio Logo"
-            className="w-11 h-11 rounded-xl object-cover shadow-md shadow-orange-500/15 border border-orange-200 dark:border-orange-900/50 bg-white"
+            className="w-14 h-14 rounded-2xl object-cover shadow-md shadow-orange-500/15 border-2 border-orange-200 dark:border-orange-900/50 bg-white p-0.5"
             referrerPolicy="no-referrer"
           />
           <div>
