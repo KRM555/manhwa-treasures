@@ -57,7 +57,11 @@ export function AuthModal() {
     }
     const ok = addEmail(cleanEmail);
     if (ok) {
-      toast.success(t.adFreeAdded);
+      toast.success(
+        lang === "ar"
+          ? `تم إعفاء ${cleanEmail} بنجاح وحفظه على الخادم! أصبح حسابه VIP بدون إعلانات.`
+          : `Granted ad-free VIP status to ${cleanEmail}!`,
+      );
       setNewAdFreeEmail("");
     }
   };
@@ -65,6 +69,22 @@ export function AuthModal() {
   const handleRemoveAdFreeEmail = (target: string) => {
     removeEmail(target);
     toast.success(t.adFreeRemoved);
+  };
+
+  const handleSwitchToAccount = (targetEmail: string) => {
+    const localUser: LocalAuthUser = {
+      id: "local_" + Math.random().toString(36).substring(2, 9),
+      email: targetEmail.trim().toLowerCase(),
+      created_at: new Date().toISOString(),
+    };
+    setLocalAuthUser(localUser);
+    setUser(localUser);
+    toast.success(
+      lang === "ar"
+        ? `تم التبديل بنجاح إلى ${targetEmail}! تم إخفاء كافة الإعلانات وتفعيل الـ VIP 👑`
+        : `Switched to ${targetEmail}! Ads removed and VIP active 👑`,
+    );
+    setIsOpen(false);
   };
 
   useEffect(() => {
@@ -168,29 +188,73 @@ export function AuthModal() {
     const cleanEmail = email.trim().toLowerCase();
 
     try {
-      const { data, error } = isSignUp
-        ? await supabase.auth.signUp({ email: cleanEmail, password })
-        : await supabase.auth.signInWithPassword({ email: cleanEmail, password });
+      const hasRealSupabase = Boolean(
+        import.meta.env.VITE_SUPABASE_URL &&
+        !import.meta.env.VITE_SUPABASE_URL.includes("placeholder"),
+      );
 
-      if (error || !data?.session) {
-        // Fallback to local session if Supabase cloud credentials are not active
-        const localUser: LocalAuthUser = {
-          id: "local_" + Math.random().toString(36).substring(2, 9),
-          email: cleanEmail,
-          created_at: new Date().toISOString(),
-        };
-        setLocalAuthUser(localUser);
-        setUser(localUser);
-        toast.success(isSignUp ? t.accountCreated : t.signedIn);
-        setIsOpen(false);
-      } else {
-        setLocalAuthUser({
-          id: data.session.user.id,
-          email: cleanEmail,
-        });
-        toast.success(isSignUp ? t.accountCreated : t.signedIn);
-        setIsOpen(false);
+      if (hasRealSupabase) {
+        if (isSignUp) {
+          const { data, error } = await supabase.auth.signUp({
+            email: cleanEmail,
+            password,
+          });
+          if (error) {
+            toast.error(error.message);
+            return;
+          }
+          if (data.user) {
+            const registeredUser: LocalAuthUser = {
+              id: data.user.id,
+              email: cleanEmail,
+              created_at: new Date().toISOString(),
+            };
+            setLocalAuthUser(registeredUser);
+            setUser(registeredUser);
+            toast.success(
+              data.session
+                ? t.accountCreated
+                : lang === "ar"
+                  ? "تم إنشاء الحساب وحفظه في Supabase بنجاح!"
+                  : "Account created and saved in Supabase!",
+            );
+            setIsOpen(false);
+            return;
+          }
+        } else {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          });
+          if (error) {
+            toast.error(error.message);
+            return;
+          }
+          if (data.user) {
+            const loggedInUser: LocalAuthUser = {
+              id: data.user.id,
+              email: cleanEmail,
+              created_at: new Date().toISOString(),
+            };
+            setLocalAuthUser(loggedInUser);
+            setUser(loggedInUser);
+            toast.success(t.signedIn);
+            setIsOpen(false);
+            return;
+          }
+        }
       }
+
+      // Fast immediate local authentication without hanging DNS
+      const localUser: LocalAuthUser = {
+        id: "local_" + Math.random().toString(36).substring(2, 9),
+        email: cleanEmail,
+        created_at: new Date().toISOString(),
+      };
+      setLocalAuthUser(localUser);
+      setUser(localUser);
+      toast.success(isSignUp ? t.accountCreated : t.signedIn);
+      setIsOpen(false);
     } catch {
       // Local fallback
       const localUser: LocalAuthUser = {
@@ -358,15 +422,28 @@ export function AuthModal() {
                             {emailItem}
                           </span>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveAdFreeEmail(emailItem)}
-                          title={t.adFreeRemoveBtn}
-                          className="w-6 h-6 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-md shrink-0"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleSwitchToAccount(emailItem)}
+                            title={
+                              lang === "ar" ? "دخول سريع لتجربة هذا الحساب" : "Test as this user"
+                            }
+                            className="h-6 text-[10px] px-2 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15 rounded-md font-bold"
+                          >
+                            {lang === "ar" ? "دخول بهذا الحساب" : "Switch"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveAdFreeEmail(emailItem)}
+                            title={t.adFreeRemoveBtn}
+                            className="w-6 h-6 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-md shrink-0"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>

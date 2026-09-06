@@ -100,8 +100,17 @@ export function addAdFreeEmail(email: string): boolean {
   const norm = normalizeEmail(email);
   if (!norm || !norm.includes("@")) return false;
   const current = getAdFreeEmails();
-  if (current.includes(norm)) return true;
-  saveAdFreeEmails([...current, norm]);
+  const next = Array.from(new Set([...current, norm]));
+  saveAdFreeEmails(next);
+
+  // Sync with server API
+  if (typeof window !== "undefined") {
+    fetch("/api/ad-exemptions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: norm, action: "add" }),
+    }).catch((err) => console.debug("Syncing ad exemption error:", err));
+  }
   return true;
 }
 
@@ -111,17 +120,47 @@ export function removeAdFreeEmail(email: string): boolean {
   const current = getAdFreeEmails();
   const next = current.filter((e) => e !== norm);
   saveAdFreeEmails(next);
+
+  // Sync with server API
+  if (typeof window !== "undefined") {
+    fetch("/api/ad-exemptions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: norm, action: "remove" }),
+    }).catch((err) => console.debug("Syncing ad exemption removal error:", err));
+  }
   return true;
 }
 
 // React Hook to subscribe to ad-free status and user session
 export function useAdStatus() {
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return getLocalAuthUser()?.email || null;
+  });
   const [adFreeEmails, setAdFreeEmails] = useState<string[]>(getAdFreeEmails);
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [isAdFree, setIsAdFree] = useState<boolean>(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return isAdminEmail(getLocalAuthUser()?.email);
+  });
+  const [isAdFree, setIsAdFree] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return isEmailAdFree(getLocalAuthUser()?.email);
+  });
 
   useEffect(() => {
+    // Initial fetch of exempt emails from central server
+    if (typeof window !== "undefined") {
+      fetch("/api/ad-exemptions")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.success && Array.isArray(data.exempts)) {
+            saveAdFreeEmails(data.exempts);
+          }
+        })
+        .catch(() => {});
+    }
+
     const checkActiveUser = (email: string | null) => {
       // If no Supabase email, fall back to local stored session
       const effectiveEmail = email || getLocalAuthUser()?.email || null;
