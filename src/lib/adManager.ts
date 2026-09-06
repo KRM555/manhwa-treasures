@@ -5,12 +5,9 @@ export const STORAGE_KEY_EXEMPT = "manga_ad_exempt_emails";
 export const STORAGE_KEY_ADMINS = "manga_custom_admins";
 export const STORAGE_KEY_LOCAL_USER = "manga_local_auth_user";
 
-// Site owners / default super admins (Always exempt and have full admin privileges)
-export const DEFAULT_ADMIN_EMAILS = [
-  "kareemelgohary01@gmail.com",
-  "kareemelgohary02@gmail.com",
-  "am1relgohary2002@gmail.com",
-];
+// Site owner / primary system admin (Only this email has administrative privileges)
+export const PRIMARY_ADMIN_EMAIL = "kareemelgohary01@gmail.com";
+export const DEFAULT_ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL];
 
 // Helper to normalize email
 export function normalizeEmail(email?: string | null): string {
@@ -69,25 +66,11 @@ export function saveAdFreeEmails(emails: string[]): void {
   window.dispatchEvent(new CustomEvent("ad_exemptions_changed", { detail: unique }));
 }
 
-// Check if an email is admin
+// Check if an email is admin (Strictly kareemelgohary01@gmail.com only)
 export function isAdminEmail(email?: string | null): boolean {
   if (!email) return false;
   const norm = normalizeEmail(email);
-  if (DEFAULT_ADMIN_EMAILS.some((adm) => normalizeEmail(adm) === norm)) {
-    return true;
-  }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_ADMINS);
-    if (raw) {
-      const extraAdmins: string[] = JSON.parse(raw);
-      if (Array.isArray(extraAdmins) && extraAdmins.some((a) => normalizeEmail(a) === norm)) {
-        return true;
-      }
-    }
-  } catch {
-    // Ignore
-  }
-  return false;
+  return norm === PRIMARY_ADMIN_EMAIL;
 }
 
 // Check if an email is ad-free (either admin or in exempt list)

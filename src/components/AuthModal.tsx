@@ -32,6 +32,8 @@ import {
   setLocalAuthUser,
   isEmailAdFree,
   LocalAuthUser,
+  PRIMARY_ADMIN_EMAIL,
+  normalizeEmail,
 } from "@/lib/adManager";
 
 interface HistoryItem {
@@ -46,6 +48,8 @@ export function AuthModal() {
   const { isAdmin, isAdFree, adFreeEmails, addEmail, removeEmail, currentUserEmail } =
     useAdStatus();
   const [user, setUser] = useState<any>(null);
+  const isSuperAdmin =
+    isAdmin && normalizeEmail(user?.email || currentUserEmail) === PRIMARY_ADMIN_EMAIL;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -376,7 +380,7 @@ export function AuthModal() {
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <p className="text-[10px] text-muted-foreground">{t.accountLabel}</p>
-                  {isAdmin && (
+                  {isSuperAdmin && (
                     <span className="text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
                       <ShieldCheck className="w-2.5 h-2.5" />
                       {t.adminBadge}
@@ -427,8 +431,8 @@ export function AuthModal() {
               </div>
             )}
 
-            {/* Admin Ad-Free Management Section */}
-            {isAdmin && (
+            {/* Admin Ad-Free Management Section (Exclusively for kareemelgohary01@gmail.com) */}
+            {isSuperAdmin && (
               <div className="p-3 bg-amber-500/5 rounded-xl border border-amber-500/25 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">

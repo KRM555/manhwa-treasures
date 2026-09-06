@@ -49,13 +49,14 @@ describe("adManager test suite", () => {
   });
 
   it("recognizes the super admin email", () => {
-    expect(isAdminEmail("am1relgohary2002@gmail.com")).toBe(true);
-    expect(isAdminEmail("  AM1RELGOHARY2002@GMAIL.COM ")).toBe(true);
+    expect(isAdminEmail("kareemelgohary01@gmail.com")).toBe(true);
+    expect(isAdminEmail("  KAREEMELGOHARY01@GMAIL.COM ")).toBe(true);
+    expect(isAdminEmail("am1relgohary2002@gmail.com")).toBe(false);
     expect(isAdminEmail("random_user@gmail.com")).toBe(false);
   });
 
   it("considers admin emails ad-free by default", () => {
-    expect(isEmailAdFree("am1relgohary2002@gmail.com")).toBe(true);
+    expect(isEmailAdFree("kareemelgohary01@gmail.com")).toBe(true);
     expect(isEmailAdFree("free_user@example.com")).toBe(false);
   });
 
