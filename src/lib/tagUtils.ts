@@ -145,7 +145,10 @@ function splitTagLine(
 
   // 4. Tab separated
   if (cleanLine.includes("\t")) {
-    const tabParts = cleanLine.split("\t").map((p) => p.trim()).filter(Boolean);
+    const tabParts = cleanLine
+      .split("\t")
+      .map((p) => p.trim())
+      .filter(Boolean);
     if (tabParts.length >= 2) {
       return {
         rawTag: tabParts[0]!,
@@ -257,7 +260,8 @@ export function parseTagRulesFromText(
     if (!rawTag && !rawDescription) continue;
 
     // Check classification
-    const matchedCategory = classifyTagDescription(rawDescription) || classifyTagDescription(rawTag);
+    const matchedCategory =
+      classifyTagDescription(rawDescription) || classifyTagDescription(rawTag);
     const { prefix, suffix } = normalizePrefixSuffix(rawTag, explicitSuffix);
 
     if (matchedCategory) {
@@ -303,7 +307,7 @@ export function exportTagsToText(tags: TagRule[]): string {
     "# Manga Typer Studio - ملف إعدادات وقواعد العلامات (Tags)",
     "# الصيغة المدعومة: العلامة : الشرح أو التصنيف",
     "# مثال:",
-    "# \"\": حوار",
+    '# "": حوار',
     "# (): أفكار",
     "# <>: صراخ",
     "# []: نظام",

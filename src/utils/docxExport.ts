@@ -1,7 +1,17 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from "docx";
 import { MangaPageItem } from "@/types/manga";
+import { extractPageNumber } from "@/lib/zipUtils";
 
-export function createChapterDocxDocument(pages: MangaPageItem[], isRTL: boolean = true): Document {
+export interface DocxExportOptions {
+  startPageNumber?: number;
+  useFilenamePageNumber?: boolean;
+}
+
+export function createChapterDocxDocument(
+  pages: MangaPageItem[],
+  isRTL: boolean = true,
+  options?: DocxExportOptions,
+): Document {
   const docChildren: Paragraph[] = [];
 
   // Title Document Heading
@@ -31,7 +41,13 @@ export function createChapterDocxDocument(pages: MangaPageItem[], isRTL: boolean
 
   // Iterate each page and add headings + paragraphs
   pages.forEach((page, pageIndex) => {
-    const pageNum = pageIndex + 1;
+    let pageNum = (options?.startPageNumber || 1) + pageIndex;
+    if (options?.useFilenamePageNumber !== false) {
+      const detected = extractPageNumber(page.fileName);
+      if (detected !== null && detected > 0) {
+        pageNum = detected;
+      }
+    }
 
     // Page Section Header
     docChildren.push(
@@ -121,8 +137,9 @@ export function createChapterDocxDocument(pages: MangaPageItem[], isRTL: boolean
 export async function exportChapterToDocx(
   pages: MangaPageItem[],
   isRTL: boolean = true,
+  options?: DocxExportOptions,
 ): Promise<void> {
-  const doc = createChapterDocxDocument(pages, isRTL);
+  const doc = createChapterDocxDocument(pages, isRTL, options);
   const blob = await Packer.toBlob(doc);
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

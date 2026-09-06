@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  parseTagRulesFromText,
-  classifyTagDescription,
-  exportTagsToText,
-} from "./tagUtils";
+import { parseTagRulesFromText, classifyTagDescription, exportTagsToText } from "./tagUtils";
 import { TagRule } from "@/types/manga";
 
 describe("Tag Rules Parsing and Classification (tagUtils)", () => {

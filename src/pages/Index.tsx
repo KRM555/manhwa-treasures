@@ -14,10 +14,12 @@ import {
 import { formatGlossaryForPrompt } from "@/lib/glossaryUtils";
 import { lookupTranslationMemory, saveToTranslationMemory } from "@/lib/translationMemory";
 import { parseJsonFromResponse } from "@/lib/geminiParser";
-import { formatTextWithRules } from "@/lib/exportUtils";
+import { formatTextWithRules, buildScriptText } from "@/lib/exportUtils";
+import { compareImageFilenames, extractPageNumber } from "@/lib/zipUtils";
+import { exportChapterToDocx } from "@/utils/docxExport";
 import { parseTagRulesFromText, exportTagsToText } from "@/lib/tagUtils";
 import { GeminiModelMeta, GlossaryItem } from "@/types";
-import { TranslationConfig } from "@/types/manga";
+import { TranslationConfig, MangaPageItem } from "@/types/manga";
 import {
   ArrowLeft,
   Download,
@@ -39,6 +41,7 @@ import {
   Copy,
   ArrowUp,
   ArrowDown,
+  ArrowUpDown,
   Search,
   Replace,
   RotateCcw,
@@ -60,6 +63,9 @@ import {
   Zap,
   Database,
   Layers,
+  Hash,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -135,6 +141,7 @@ export default function Index() {
   });
   const [showGlossaryModal, setShowGlossaryModal] = useState<boolean>(false);
   const [showTMModal, setShowTMModal] = useState<boolean>(false);
+  const [showPageNumberModal, setShowPageNumberModal] = useState<boolean>(false);
   const [retranslatingBubbleId, setRetranslatingBubbleId] = useState<string | null>(null);
 
   const [images, setImages] = useState<ImageItem[]>(() => {
@@ -145,7 +152,17 @@ export default function Index() {
   const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   const [editingImageId, setEditingImageId] = useState<string | null>(null);
   const [editingImageName, setEditingImageName] = useState<string>("");
+  const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
   const [view, setView] = useState<"upload" | "results">("upload");
+
+  const [startPageNumber, setStartPageNumber] = useState<number>(() => {
+    const saved = localStorage.getItem("manga_start_page_number");
+    return saved ? parseInt(saved, 10) || 1 : 1;
+  });
+  const [useFilenamePageNumber, setUseFilenamePageNumber] = useState<boolean>(() => {
+    const saved = localStorage.getItem("manga_use_filename_page_number");
+    return saved !== null ? saved === "true" : true;
+  });
 
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [isTestingKey, setIsTestingKey] = useState<boolean>(false);
@@ -255,6 +272,14 @@ export default function Index() {
   }, [images]);
 
   useEffect(() => {
+    localStorage.setItem("manga_start_page_number", startPageNumber.toString());
+  }, [startPageNumber]);
+
+  useEffect(() => {
+    localStorage.setItem("manga_use_filename_page_number", useFilenamePageNumber.toString());
+  }, [useFilenamePageNumber]);
+
+  useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
     } else {
@@ -264,6 +289,14 @@ export default function Index() {
 
   const activeImage = images[activeImageIndex] || null;
   const currentItems = activeImage ? resultsMap[activeImage.id] || [] : [];
+
+  const getDisplayPageNumber = (img?: ImageItem | null, idx?: number): number => {
+    if (useFilenamePageNumber && img) {
+      const detected = extractPageNumber(img.name);
+      if (detected !== null && detected > 0) return detected;
+    }
+    return (startPageNumber || 1) + (idx !== undefined ? idx : 0);
+  };
 
   // Strip spaces and surrounding quotes cleanly
   const cleanApiKey = apiKey.replace(/[\s\r\n\t"']/g, "").trim();
@@ -316,23 +349,69 @@ export default function Index() {
   };
 
   const handleImageSelected = (url: string, name: string) => {
-    if (images.length >= 15) {
+    if (images.length >= 50) {
       toast.error(t.multiImageLimit);
       return;
     }
     const newImage: ImageItem = { id: `img_${Date.now()}_${Math.random()}`, url, name };
-    setImages((prev) => [...prev, newImage]);
+    const detected = extractPageNumber(name);
+    if (images.length === 0 && detected !== null && detected > 0) {
+      setStartPageNumber(detected);
+    }
+    setImages((prev) => {
+      const combined = [...prev, newImage];
+      return combined.sort((a, b) => compareImageFilenames(a.name, b.name));
+    });
     setActiveImageIndex(images.length);
   };
 
   const handleMultipleImagesSelected = (newImages: { url: string; name: string }[]) => {
-    const formatted = newImages.map((img) => ({
+    // Sort newly uploaded images naturally by filename/number
+    const sortedNew = [...newImages].sort((a, b) => compareImageFilenames(a.name, b.name));
+
+    const formatted = sortedNew.map((img) => ({
       id: `img_${Date.now()}_${Math.random()}`,
       url: img.url,
       name: img.name,
     }));
-    setImages((prev) => [...prev, ...formatted].slice(0, 15));
+
+    // Auto-detect starting page number if the first image has a page number
+    if (sortedNew.length > 0) {
+      const firstNum = extractPageNumber(sortedNew[0].name);
+      if (firstNum !== null && firstNum > 0) {
+        if (images.length === 0 || firstNum > 1) {
+          setStartPageNumber(firstNum);
+        }
+      }
+    }
+
+    setImages((prev) => {
+      const combined = [...prev, ...formatted].slice(0, 50);
+      return combined.sort((a, b) => compareImageFilenames(a.name, b.name));
+    });
     setActiveImageIndex(0);
+  };
+
+  const handleSortImagesNumerically = () => {
+    if (images.length <= 1) return;
+    const sorted = [...images].sort((a, b) => compareImageFilenames(a.name, b.name));
+    setImages(sorted);
+    setActiveImageIndex(0);
+    toast.success(t.sortPagesDone);
+  };
+
+  const toggleSelectImage = (id: string) => {
+    setSelectedImageIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const handleSelectAllImages = () => {
+    setSelectedImageIds(images.map((img) => img.id));
+  };
+
+  const handleDeselectAllImages = () => {
+    setSelectedImageIds([]);
   };
 
   const handleRemoveImage = (index: number) => {
@@ -341,6 +420,7 @@ export default function Index() {
     setImages(updated);
 
     if (imgToRemove) {
+      setSelectedImageIds((prev) => prev.filter((id) => id !== imgToRemove.id));
       const newMap = { ...resultsMap };
       delete newMap[imgToRemove.id];
       setResultsMap(newMap);
@@ -394,12 +474,15 @@ export default function Index() {
 
   const handleClearAllImages = () => {
     setImages([]);
+    setSelectedImageIds([]);
     setActiveImageIndex(0);
     setResultsMap({});
     setReferenceText("");
     setReferenceFileName("");
+    setStartPageNumber(1);
     localStorage.removeItem("manga_studio_results");
     localStorage.removeItem("manga_studio_images");
+    localStorage.removeItem("manga_start_page_number");
     toast.success(t.newProjectStarted);
   };
 
@@ -467,9 +550,7 @@ export default function Index() {
       }
 
       setTags(result.tags);
-      toast.success(
-        t.tagsImportSuccess.replace("{count}", String(result.totalParsed)),
-      );
+      toast.success(t.tagsImportSuccess.replace("{count}", String(result.totalParsed)));
     };
 
     reader.readAsText(file);
@@ -896,6 +977,69 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
     setIsAnalyzing(false);
   };
 
+  const handleAnalyzeSelected = async (ocrOnly = false): Promise<void> => {
+    const targetImages = images.filter((img) => selectedImageIds.includes(img.id));
+    if (targetImages.length === 0) {
+      toast.error(t.noPagesSelected);
+      return;
+    }
+    if (!cleanApiKey) {
+      toast.error(t.enterApiKey);
+      setShowKeyHelpModal(true);
+      return;
+    }
+
+    setIsAnalyzing(true);
+    const newMap = { ...resultsMap };
+    let successCount = 0;
+    let lastError = "";
+
+    for (let i = 0; i < targetImages.length; i++) {
+      const img = targetImages[i]!;
+      const pageIndex = images.findIndex((x) => x.id === img.id);
+      const pageNum = getDisplayPageNumber(img, pageIndex >= 0 ? pageIndex : i);
+
+      setCurrentProcessingMsg(t.reAnalyzingPage(i + 1, targetImages.length, pageNum));
+
+      const { data: res, error } = await processGeminiRequest(img, ocrOnly, reAnalysisNote);
+      if (res && res.length > 0) {
+        newMap[img.id] = res;
+        successCount++;
+
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user) {
+            supabase
+              .from("user_history")
+              .insert({
+                user_id: session.user.id,
+                image_name: img.name,
+                extracted_count: res.length,
+              })
+              .then(({ error: histError }) => {
+                if (histError) console.error("Failed to save history:", histError);
+              });
+          }
+        });
+      } else if (error) {
+        lastError = error;
+        toast.error(`❌ #${pageNum} (${img.name}): ${error}`, { duration: 5000 });
+      }
+    }
+
+    setResultsMap(newMap);
+    setIsAnalyzing(false);
+
+    if (successCount > 0) {
+      toast.success(t.reAnalyzeSelectedSuccess(successCount));
+      setView("results");
+    } else if (lastError) {
+      toast.error(`❌ ${lastError || t.extractionFailed}`, { duration: 8000 });
+      if (cleanApiKey.startsWith("AQ.")) {
+        setShowKeyHelpModal(true);
+      }
+    }
+  };
+
   const handleAnalyzeAll = async (ocrOnly = false): Promise<void> => {
     if (images.length === 0) {
       toast.error(t.selectImageFirst);
@@ -946,18 +1090,15 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
     const targetImages = scope === "current" ? (activeImage ? [activeImage] : []) : images;
     if (targetImages.length === 0) return;
 
-    let fullOutput = "";
-    targetImages.forEach((img) => {
-      const realIndex = images.findIndex((i) => i.id === img.id);
-      const itemsForImg = resultsMap[img.id] || [];
-      if (itemsForImg.length > 0) {
-        fullOutput += `=== Page ${realIndex + 1}: ${img.name} ===\n\n`;
-        itemsForImg.forEach((item) => {
-          const contentToExport = textType === "original" ? item.originalText : item.translatedText;
-          fullOutput += formatItemText(contentToExport, item.category) + "\n\n";
-        });
-        fullOutput += "\n";
-      }
+    const fullOutput = buildScriptText({
+      images,
+      resultsMap,
+      textType,
+      tags,
+      scope,
+      currentImageId: activeImage?.id,
+      startPageNumber,
+      useFilenamePageNumber,
     });
 
     if (!fullOutput.trim()) {
@@ -970,13 +1111,16 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
     const link = document.createElement("a");
     link.href = url;
 
+    const currentPageDisplay = activeImage
+      ? getDisplayPageNumber(activeImage, activeImageIndex)
+      : activeImageIndex + 1;
     const fileName =
       textType === "original"
         ? scope === "current"
-          ? `page_${activeImageIndex + 1}_ocr_original_script.txt`
+          ? `page_${currentPageDisplay}_ocr_original_script.txt`
           : `full_ocr_original_script.txt`
         : scope === "current"
-          ? `page_${activeImageIndex + 1}_translated_script.txt`
+          ? `page_${currentPageDisplay}_translated_script.txt`
           : `full_translated_script.txt`;
 
     link.download = fileName;
@@ -986,6 +1130,34 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
     URL.revokeObjectURL(url);
 
     toast.success(t.exported(fileName));
+  };
+
+  const handleExportDocx = async (scope: "current" | "all"): Promise<void> => {
+    const targetImages = scope === "current" ? (activeImage ? [activeImage] : []) : images;
+    if (targetImages.length === 0) return;
+
+    const targetPages: MangaPageItem[] = targetImages.map((img) => ({
+      id: img.id,
+      fileName: img.name,
+      previewUrl: img.url,
+      status: "completed",
+      items: (resultsMap[img.id] || []).map((item) => ({
+        id: item.id,
+        originalText: item.originalText,
+        translatedText: item.translatedText,
+        category: item.category,
+      })),
+    }));
+
+    try {
+      await exportChapterToDocx(targetPages, config.targetLanguage === "ar", {
+        startPageNumber,
+        useFilenamePageNumber,
+      });
+      toast.success(t.exported("DOCX"));
+    } catch (err) {
+      toast.error("فشل في إنشاء ملف Word (DOCX)");
+    }
   };
 
   const updateItem = (id: string, field: keyof ExtractedText, value: string) => {
@@ -1178,7 +1350,7 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
                         : "Write each tag on a line with a colon (:) and its description. Tags will be auto-classified:"}
                     </p>
                     <pre className="bg-background/90 p-2.5 rounded-lg font-mono text-[11px] dir-ltr text-foreground overflow-x-auto border border-border/60">
-{`"": حوار
+                      {`"": حوار
 (): أفكار
 <>: صراخ
 []: نظام
@@ -1447,13 +1619,102 @@ ST: همس`}
         </DialogContent>
       </Dialog>
 
+      {/* نافذة إعدادات ترقيم الصفحات */}
+      <Dialog open={showPageNumberModal} onOpenChange={setShowPageNumberModal}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-orange-600">
+              <Hash className="w-5 h-5" />
+              <span>{t.pageNumberingSettings}</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 text-xs py-2">
+            <div className="space-y-1.5 bg-muted/40 p-3 rounded-xl border border-border">
+              <Label className="font-bold text-foreground text-xs flex items-center gap-1.5">
+                <span>{t.startPageNumberLabel}</span>
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  value={startPageNumber}
+                  onChange={(e) =>
+                    setStartPageNumber(Math.max(1, parseInt(e.target.value, 10) || 1))
+                  }
+                  className="h-8 w-28 text-xs font-mono font-bold bg-background text-foreground"
+                />
+                <span className="text-[11px] text-muted-foreground">{t.startPageNumberDesc}</span>
+              </div>
+            </div>
+
+            <div className="space-y-1 bg-muted/40 p-3 rounded-xl border border-border">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="use-filename-num"
+                  checked={useFilenamePageNumber}
+                  onCheckedChange={(c) => setUseFilenamePageNumber(!!c)}
+                />
+                <Label htmlFor="use-filename-num" className="font-bold cursor-pointer text-xs">
+                  {t.useFilenameNumberLabel}
+                </Label>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1 pr-6 pl-6">
+                {t.useFilenameNumberDesc}
+              </p>
+            </div>
+
+            {images.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-7 rounded-lg"
+                  onClick={() => {
+                    const firstNum = extractPageNumber(images[0]?.name || "");
+                    if (firstNum !== null && firstNum > 0) {
+                      setStartPageNumber(firstNum);
+                      toast.success(`تم ضبط البداية على صفحة ${firstNum}`);
+                    } else {
+                      toast.info("اسم أول ملف لا يحتوي على رقم صفحة واضح");
+                    }
+                  }}
+                >
+                  التقاط رقم أول صورة ({images[0]?.name})
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs h-7 rounded-lg text-muted-foreground"
+                  onClick={() => {
+                    setStartPageNumber(1);
+                    setUseFilenamePageNumber(true);
+                  }}
+                >
+                  استعادة الافتراضي (1)
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              className="bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-xl"
+              onClick={() => setShowPageNumberModal(false)}
+            >
+              {t.close}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Bar for images */}
       {images.length > 0 && (
-        <div className="mb-6 p-3 bg-card border border-border rounded-2xl flex items-center justify-between gap-3 overflow-x-auto shadow-sm">
-          <div className="flex items-center gap-2">
+        <div className="mb-6 p-3 bg-card border border-border rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto">
             <Images className="w-4 h-4 text-orange-500 shrink-0" />
             <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">
-              {t.page} ({images.length}/15):
+              {t.page} ({images.length}/50):
             </span>
             <div
               className="flex gap-1.5 overflow-x-auto py-1"
@@ -1472,16 +1733,30 @@ ST: همس`}
                   className={`relative flex items-center gap-1.5 shrink-0 rounded-lg px-2 py-1 transition-all ${
                     activeImageIndex === idx
                       ? "bg-orange-600 text-white shadow-md"
-                      : "bg-muted hover:bg-muted/80 text-foreground"
+                      : selectedImageIds.includes(img.id)
+                        ? "bg-orange-500/15 border border-orange-500/60 text-foreground shadow-xs"
+                        : "bg-muted hover:bg-muted/80 text-foreground"
                   } ${draggedImageIndex === idx ? "opacity-50" : ""}`}
                   title="اسحب الصفحة لتغيير ترتيبها"
                 >
                   <GripVertical className="w-3 h-3 cursor-grab opacity-60" />
+                  <input
+                    type="checkbox"
+                    checked={selectedImageIds.includes(img.id)}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      toggleSelectImage(img.id);
+                    }}
+                    className="w-3.5 h-3.5 rounded border-orange-500 accent-orange-600 cursor-pointer shrink-0"
+                    title={
+                      lang === "ar" ? "تحديد الصفحة لإعادة التحليل" : "Select page for re-analysis"
+                    }
+                  />
                   <button
                     onClick={() => setActiveImageIndex(idx)}
                     className="flex items-center gap-1.5 text-xs font-bold"
                   >
-                    <span>#{idx + 1}</span>
+                    <span>#{getDisplayPageNumber(img, idx)}</span>
                     {resultsMap[img.id] && (
                       <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
                     )}
@@ -1516,14 +1791,69 @@ ST: همس`}
               ))}
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClearAllImages}
-            className="text-xs text-red-500 font-bold shrink-0"
-          >
-            {t.clearAll}
-          </Button>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={
+                selectedImageIds.length === images.length && images.length > 0
+                  ? handleDeselectAllImages
+                  : handleSelectAllImages
+              }
+              title={
+                selectedImageIds.length === images.length && images.length > 0
+                  ? t.deselectAllPages
+                  : t.selectAllPages
+              }
+              className="text-xs font-bold gap-1 rounded-xl h-8 border-border hover:border-orange-500/40 shadow-sm"
+            >
+              <CheckSquare className="w-3.5 h-3.5 text-orange-500" />
+              <span>
+                {selectedImageIds.length === images.length && images.length > 0
+                  ? t.deselectAllPages
+                  : t.selectAllPages}
+              </span>
+              {selectedImageIds.length > 0 && (
+                <span className="bg-orange-600 text-white text-[10px] font-bold rounded-full px-1.5 py-0.2">
+                  {selectedImageIds.length}
+                </span>
+              )}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSortImagesNumerically}
+              title={t.sortPagesNumerically}
+              className="text-xs font-bold gap-1 rounded-xl h-8 border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 shadow-sm"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5" />
+              <span>{t.sortPagesNumerically}</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPageNumberModal(true)}
+              title={t.pageNumberingSettings}
+              className="text-xs font-bold gap-1 rounded-xl h-8 border-border hover:border-orange-500/40"
+            >
+              <Hash className="w-3.5 h-3.5 text-orange-500" />
+              <span>
+                {useFilenamePageNumber ? `${t.page}: تلقائي` : `${t.page}: ${startPageNumber}+`}
+              </span>
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearAllImages}
+              className="text-xs text-red-500 font-bold h-8 rounded-xl hover:bg-red-500/10"
+            >
+              {t.clearAll}
+            </Button>
+          </div>
         </div>
       )}
 
@@ -1664,11 +1994,28 @@ ST: همس`}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPageNumberModal(true)}
+                className="h-8 text-xs font-bold gap-1.5 rounded-xl border-border hover:border-orange-500/40"
+                title={t.pageNumberingSettings}
+              >
+                <Hash className="w-3.5 h-3.5 text-orange-500" />
+                <span>
+                  {t.pageNumberingSettings} (
+                  {useFilenamePageNumber
+                    ? `${t.page}: ${activeImage ? getDisplayPageNumber(activeImage, activeImageIndex) : startPageNumber}`
+                    : `${t.page}: ${startPageNumber}+`}
+                  )
+                </span>
+              </Button>
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className="border-orange-500/40 text-orange-600 dark:text-orange-400 gap-1.5 text-xs font-bold rounded-xl"
+                    className="border-orange-500/40 text-orange-600 dark:text-orange-400 gap-1.5 text-xs font-bold rounded-xl h-8"
                   >
                     <FileDown className="w-4 h-4" /> {t.exportOriginal}{" "}
                     <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
@@ -1679,20 +2026,20 @@ ST: همس`}
                     onClick={() => handleExportText("current", "original")}
                     className="text-xs cursor-pointer font-medium"
                   >
-                    {t.exportCurrentPage}
+                    {t.exportCurrentPage} (TXT)
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => handleExportText("all", "original")}
                     className="text-xs cursor-pointer font-medium"
                   >
-                    {t.exportAllPages}
+                    {t.exportAllPages} (TXT)
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button className="bg-orange-600 hover:bg-orange-700 text-white gap-1.5 text-xs font-bold rounded-xl shadow-sm">
+                  <Button className="bg-orange-600 hover:bg-orange-700 text-white gap-1.5 text-xs font-bold rounded-xl shadow-sm h-8">
                     <Download className="w-4 h-4" /> {t.exportTranslated}{" "}
                     <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
                   </Button>
@@ -1702,69 +2049,197 @@ ST: همس`}
                     onClick={() => handleExportText("current", "translated")}
                     className="text-xs cursor-pointer font-medium"
                   >
-                    {t.exportCurrentPage}
+                    {t.exportCurrentPage} (TXT)
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => handleExportText("all", "translated")}
                     className="text-xs cursor-pointer font-medium"
                   >
-                    {t.exportAllPages}
+                    {t.exportAllPages} (TXT)
+                  </DropdownMenuItem>
+                  <div className="h-[1px] bg-border/60 my-1"></div>
+                  <DropdownMenuItem
+                    onClick={() => handleExportDocx("current")}
+                    className="text-xs cursor-pointer font-medium text-orange-600 dark:text-orange-400"
+                  >
+                    {t.exportDocxCurrent}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleExportDocx("all")}
+                    className="text-xs cursor-pointer font-medium text-orange-600 dark:text-orange-400"
+                  >
+                    {t.exportDocxAll}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
 
-          {/* صندوق اقتراحات وإعادة التحليل الموسّع */}
-          <div className="bg-card p-4 rounded-2xl border border-orange-500/30 shadow-sm space-y-3">
+          {/* صندوق اقتراحات وإعادة التحليل الموسّع مع دعم تحديد صفحات معينة */}
+          <div className="bg-card p-4 rounded-2xl border border-orange-500/30 shadow-sm space-y-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
                 <RefreshCw className="w-4 h-4 text-orange-500" />
                 <span>{t.reAnalysisLabel}</span>
               </Label>
-              <span className="text-[11px] text-muted-foreground">
-                {lang === "ar"
-                  ? "اكتب تفاصيل أو ملاحظات عن الفقرات المفقودة لتوجيه النموذج بدقة عند إعادة التحليل"
-                  : "Specify notes about missed text bubbles to guide Gemini accurately"}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">
+                  {lang === "ar"
+                    ? "اكتب تفاصيل أو ملاحظات عن الفقرات المفقودة لتوجيه النموذج بدقة (اختياري)"
+                    : "Specify notes about missed text bubbles to guide Gemini accurately (optional)"}
+                </span>
+                {reAnalysisNote && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setReAnalysisNote("")}
+                    className="h-6 text-[11px] text-muted-foreground hover:text-red-500 px-2"
+                  >
+                    {lang === "ar" ? "مسح الملاحظة" : "Clear note"}
+                  </Button>
+                )}
+              </div>
             </div>
+
             <Textarea
               placeholder={t.reAnalysisPlaceholder}
               value={reAnalysisNote}
               onChange={(e) => setReAnalysisNote(e.target.value)}
               rows={2}
-              className="w-full min-h-[72px] text-xs leading-relaxed bg-muted/20 border-border rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 p-3 resize-y"
+              className="w-full min-h-[64px] text-xs leading-relaxed bg-muted/20 border-border rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 p-3 resize-y"
             />
+
+            {/* شريط تحديد الصفحات لإعادة التحليل */}
+            <div className="bg-muted/30 p-3 rounded-xl border border-border/70 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <CheckSquare className="w-3.5 h-3.5 text-orange-500" />
+                    <span>
+                      {lang === "ar"
+                        ? `تحديد الصفحات لإعادة التحليل (${selectedImageIds.length} من ${images.length})`
+                        : `Select Pages to Re-analyze (${selectedImageIds.length} of ${images.length})`}
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSelectAllImages}
+                    className="h-6 text-[11px] font-bold px-2 rounded-lg border-border hover:border-orange-500/40"
+                  >
+                    {t.selectAllPages}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDeselectAllImages}
+                    disabled={selectedImageIds.length === 0}
+                    className="h-6 text-[11px] font-bold px-2 rounded-lg border-border hover:border-orange-500/40"
+                  >
+                    {t.deselectAllPages}
+                  </Button>
+                  {activeImage && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (!selectedImageIds.includes(activeImage.id)) {
+                          setSelectedImageIds((prev) => [...prev, activeImage.id]);
+                        }
+                      }}
+                      className="h-6 text-[11px] text-orange-600 dark:text-orange-400 px-2"
+                    >
+                      {lang === "ar"
+                        ? `+ تحديد الصفحة الحالية (#${getDisplayPageNumber(activeImage, activeImageIndex)})`
+                        : `+ Select Current (#${getDisplayPageNumber(activeImage, activeImageIndex)})`}
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* أزرار الصفحات السريعة (Page Chips) */}
+              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
+                {images.map((img, idx) => {
+                  const isSelected = selectedImageIds.includes(img.id);
+                  const isCurrent = activeImageIndex === idx;
+                  const pageNum = getDisplayPageNumber(img, idx);
+                  const hasResults = Boolean(resultsMap[img.id]);
+
+                  return (
+                    <button
+                      key={img.id}
+                      type="button"
+                      onClick={() => toggleSelectImage(img.id)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
+                        isSelected
+                          ? "bg-orange-600 text-white border-orange-600 shadow-sm"
+                          : "bg-background/80 hover:bg-muted text-muted-foreground border-border/80"
+                      } ${isCurrent ? "ring-2 ring-orange-500 ring-offset-1" : ""}`}
+                      title={img.name}
+                    >
+                      <span>
+                        {isSelected ? "☑" : "☐"} #{pageNum}
+                      </span>
+                      {hasResults && (
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-white" : "bg-green-500"}`}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* أزرار تنفيذ إعادة التحليل */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  onClick={() => handleAnalyzeCurrent(false)}
-                  disabled={isAnalyzing}
-                  className="bg-orange-600 hover:bg-orange-700 text-white gap-2 text-xs font-bold h-8 px-4 rounded-xl shadow-sm"
+                  onClick={() => handleAnalyzeSelected(false)}
+                  disabled={isAnalyzing || selectedImageIds.length === 0}
+                  className="bg-orange-600 hover:bg-orange-700 text-white gap-2 text-xs font-bold h-8 px-4 rounded-xl shadow-sm disabled:opacity-50"
+                  title={
+                    selectedImageIds.length === 0
+                      ? t.noPagesSelected
+                      : `إعادة تحليل ${selectedImageIds.length} صفحة محددة`
+                  }
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzing ? "animate-spin" : ""}`} />
-                  {t.reAnalyze} (OCR + {lang === "ar" ? "ترجمة" : "Translate"})
+                  {selectedImageIds.length > 0
+                    ? `${t.reAnalyzeSelected(selectedImageIds.length)} (OCR + ترجمة)`
+                    : `${t.reAnalyze} الصفحات المحددة`}
                 </Button>
                 <Button
-                  onClick={() => handleAnalyzeCurrent(true)}
-                  disabled={isAnalyzing}
+                  onClick={() => handleAnalyzeSelected(true)}
+                  disabled={isAnalyzing || selectedImageIds.length === 0}
                   variant="outline"
-                  className="border-orange-500/40 text-orange-600 dark:text-orange-400 gap-2 text-xs font-bold h-8 px-4 rounded-xl"
+                  className="border-orange-500/40 text-orange-600 dark:text-orange-400 gap-2 text-xs font-bold h-8 px-4 rounded-xl disabled:opacity-50"
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  {t.reAnalyze} (OCR {lang === "ar" ? "فقط" : "Only"})
+                  {selectedImageIds.length > 0
+                    ? `${t.reAnalyzeSelected(selectedImageIds.length)} (OCR فقط)`
+                    : `${t.reAnalyze} (OCR فقط)`}
+                </Button>
+                <Button
+                  onClick={() => handleAnalyzeCurrent(false)}
+                  disabled={isAnalyzing}
+                  variant="secondary"
+                  className="gap-2 text-xs font-bold h-8 px-3 rounded-xl border border-border"
+                  title={t.reAnalyzeCurrentPageOnly}
+                >
+                  <RefreshCw className="w-3 h-3 text-muted-foreground" />
+                  <span>
+                    {lang === "ar"
+                      ? `الصفحة الحالية فقط (#${activeImage ? getDisplayPageNumber(activeImage, activeImageIndex) : activeImageIndex + 1})`
+                      : `Current Page Only (#${activeImage ? getDisplayPageNumber(activeImage, activeImageIndex) : activeImageIndex + 1})`}
+                  </span>
                 </Button>
               </div>
-              {reAnalysisNote && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setReAnalysisNote("")}
-                  className="h-7 text-xs text-muted-foreground hover:text-red-500"
-                >
-                  {lang === "ar" ? "مسح الملاحظة" : "Clear note"}
-                </Button>
-              )}
             </div>
           </div>
 
@@ -1772,7 +2247,11 @@ ST: همس`}
             <Card className="rounded-2xl overflow-hidden border-border bg-zinc-950/5 flex flex-col h-[750px]">
               <div className="p-3 border-b border-border bg-card/60 flex justify-between items-center text-xs text-muted-foreground font-semibold">
                 <span>
-                  {t.pagePreview} (#{activeImageIndex + 1})
+                  {t.pagePreview} (#
+                  {activeImage
+                    ? getDisplayPageNumber(activeImage, activeImageIndex)
+                    : activeImageIndex + 1}
+                  )
                 </span>
                 <div className="flex items-center gap-2">
                   <Button

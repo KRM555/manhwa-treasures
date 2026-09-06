@@ -66,4 +66,3 @@ export function buildScriptText(options: ScriptExportOptions): string {
 
   return fullOutput;
 }
-

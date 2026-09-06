@@ -14,7 +14,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { useI18n } from "@/lib/language";
-import { sortImageNames, hasPageNumber, filterZipEntries } from "@/lib/zipUtils";
+import {
+  sortImageNames,
+  hasPageNumber,
+  filterZipEntries,
+  compareImageFilenames,
+} from "@/lib/zipUtils";
 
 interface UploadZoneProps {
   imagePreview: string | null;
@@ -66,7 +71,7 @@ export function UploadZone({
           toast.warning("بعض أسماء الملفات لا تحتوي على رقم صفحة واضح؛ راجع الترتيب يدويًا.");
         }
 
-        const selectedEntries = sortedEntries.slice(0, 15);
+        const selectedEntries = sortedEntries.slice(0, 50);
         for (const entryName of selectedEntries) {
           const fileData = await zipContent.files[entryName]!.async("base64");
           const ext = entryName.split(".").pop()?.toLowerCase() || "jpeg";
@@ -76,6 +81,9 @@ export function UploadZone({
             name: entryName,
           });
         }
+
+        // Keep extracted images sorted naturally
+        extractedImages.sort((a, b) => compareImageFilenames(a.name, b.name));
 
         if (onMultipleImagesSelected) {
           onMultipleImagesSelected(extractedImages);
@@ -91,10 +99,8 @@ export function UploadZone({
 
     const imageFiles = fileList
       .filter((f) => f.type.startsWith("image/"))
-      .sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }),
-      )
-      .slice(0, 15);
+      .sort((a, b) => compareImageFilenames(a.name, b.name))
+      .slice(0, 50);
     if (imageFiles.length === 0) return;
 
     if (imageFiles.some((file) => !hasPageNumber(file.name))) {
@@ -111,24 +117,34 @@ export function UploadZone({
       };
       reader.readAsDataURL(file);
     } else {
-      const loadedImages: { url: string; name: string }[] = [];
-      let readCount = 0;
+      try {
+        const loadedImages = await Promise.all(
+          imageFiles.map(
+            (file) =>
+              new Promise<{ url: string; name: string }>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                  if (e.target?.result) {
+                    resolve({ url: e.target.result as string, name: file.name });
+                  } else {
+                    reject(new Error("Failed to read file"));
+                  }
+                };
+                reader.onerror = () => reject(reader.error || new Error("Failed to read file"));
+                reader.readAsDataURL(file);
+              }),
+          ),
+        );
 
-      imageFiles.forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          if (e.target?.result) {
-            loadedImages.push({ url: e.target.result as string, name: file.name });
-          }
-          readCount++;
-          if (readCount === imageFiles.length) {
-            if (onMultipleImagesSelected) {
-              onMultipleImagesSelected(loadedImages);
-            }
-          }
-        };
-        reader.readAsDataURL(file);
-      });
+        // Guarantee strict natural order
+        loadedImages.sort((a, b) => compareImageFilenames(a.name, b.name));
+
+        if (onMultipleImagesSelected) {
+          onMultipleImagesSelected(loadedImages);
+        }
+      } catch (err) {
+        toast.error("فشل في قراءة بعض ملفات الصور، يرجى المحاولة مرة أخرى.");
+      }
     }
   };
 

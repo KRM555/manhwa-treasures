@@ -24,15 +24,21 @@ export function filterZipEntries(filenames: string[]): string[] {
 }
 
 /**
- * Natural sort for manga and chapter page filenames.
+ * Natural sort comparison for manga and chapter page filenames.
  * Ensures:
  * - page_1.png, page_2.png, page_10.png (instead of page_1, page_10, page_2)
+ * - 1.jpg, 2.jpg ... 10.jpg, 11.jpg, 20.jpg
  * - ch01_01.jpg, ch01_02.jpg, ch01_10.jpg
  */
+export function compareImageFilenames(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
+/**
+ * Natural sort for manga and chapter page filenames.
+ */
 export function sortImageNames(names: string[]): string[] {
-  return [...names].sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
-  );
+  return [...names].sort((a, b) => compareImageFilenames(a, b));
 }
 
 /**

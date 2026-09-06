@@ -120,7 +120,9 @@ describe("Export Utilities (exportUtils)", () => {
           { id: "img12", name: "12.png" },
         ],
         resultsMap: {
-          img11: [{ id: "t1", originalText: "Hello", translatedText: "مرحبا", category: "dialogue" }],
+          img11: [
+            { id: "t1", originalText: "Hello", translatedText: "مرحبا", category: "dialogue" },
+          ],
           img12: [{ id: "t2", originalText: "Bye", translatedText: "وداعا", category: "dialogue" }],
         },
         textType: "translated",
@@ -139,7 +141,9 @@ describe("Export Utilities (exportUtils)", () => {
           { id: "imgB", name: "scene_beta.jpg" },
         ],
         resultsMap: {
-          imgA: [{ id: "t1", originalText: "Hello", translatedText: "مرحبا", category: "dialogue" }],
+          imgA: [
+            { id: "t1", originalText: "Hello", translatedText: "مرحبا", category: "dialogue" },
+          ],
           imgB: [{ id: "t2", originalText: "Bye", translatedText: "وداعا", category: "dialogue" }],
         },
         textType: "translated",
