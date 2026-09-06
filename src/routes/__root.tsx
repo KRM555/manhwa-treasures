@@ -79,17 +79,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Manhwa TransTool Studio — Webtoon OCR & Translation Tool" },
+      { title: "Manhwa Studio — Webtoon OCR & Translation Tool" },
       {
         name: "description",
         content:
           "Extract, translate, and format webtoon and manga scripts with Gemini-powered OCR, tag formatting, glossaries, and DOCX export.",
       },
-      { name: "author", content: "Manhwa TransTool Studio" },
-      { name: "application-name", content: "Manhwa TransTool Studio" },
-      { name: "apple-mobile-web-app-title", content: "Manhwa TransTool Studio" },
-      { property: "og:site_name", content: "Manhwa TransTool Studio" },
-      { property: "og:title", content: "Manhwa TransTool Studio — Webtoon OCR & Translation Tool" },
+      { name: "author", content: "Manhwa Studio" },
+      { name: "application-name", content: "Manhwa Studio" },
+      { name: "apple-mobile-web-app-title", content: "Manhwa Studio" },
+      { property: "og:site_name", content: "Manhwa Studio" },
+      { property: "og:title", content: "Manhwa Studio — Webtoon OCR & Translation Tool" },
       {
         property: "og:description",
         content:
@@ -102,10 +102,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "https://manhwa-treasures.vercel.app/logo.png",
       },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
       {
         name: "twitter:title",
-        content: "Manhwa TransTool Studio — Webtoon OCR & Translation Tool",
+        content: "Manhwa Studio — Webtoon OCR & Translation Tool",
       },
       {
         name: "twitter:description",
@@ -131,6 +130,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
+      { rel: "shortcut icon", href: "/favicon.ico" },
       { rel: "icon", href: "/favicon.ico", sizes: "any" },
       { rel: "icon", type: "image/png", sizes: "48x48", href: "/favicon-48x48.png" },
       { rel: "icon", type: "image/png", sizes: "96x96", href: "/favicon-96x96.png" },
@@ -168,20 +168,20 @@ function RootShell({ children }: { children: ReactNode }) {
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "WebSite",
-              name: "Manhwa TransTool Studio",
+              name: "Manhwa Studio",
               alternateName: [
-                "Manhwa TransTool",
-                "Manhwa Studio",
                 "Manhwa Treasures",
-                "منهوا ترانزتول ستوديو",
+                "Manhwa TransTool Studio",
                 "منهوا ستوديو",
+                "كنوز المنهوا",
+                "منهوا ترانزتول ستوديو",
               ],
               url: "https://manhwa-treasures.vercel.app/",
               description:
                 "Extract, translate, and format webtoon and manga scripts with Gemini-powered OCR, tag formatting, glossaries, and DOCX export.",
               publisher: {
                 "@type": "Organization",
-                name: "Manhwa TransTool Studio",
+                name: "Manhwa Studio",
                 logo: {
                   "@type": "ImageObject",
                   url: "https://manhwa-treasures.vercel.app/logo.png",
