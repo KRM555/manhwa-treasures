@@ -58,28 +58,48 @@ export function AuthModal() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [newAdFreeEmail, setNewAdFreeEmail] = useState("");
+  const [addingEmail, setAddingEmail] = useState(false);
+  const [removingEmail, setRemovingEmail] = useState<string | null>(null);
 
-  const handleAddAdFreeEmail = (e?: React.FormEvent) => {
+  const handleAddAdFreeEmail = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const cleanEmail = newAdFreeEmail.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes("@")) {
       toast.error(lang === "ar" ? "يرجى كتابة بريد إلكتروني صحيح" : "Please enter a valid email");
       return;
     }
-    const ok = addEmail(cleanEmail);
-    if (ok) {
-      toast.success(
-        lang === "ar"
-          ? `تم إعفاء ${cleanEmail} بنجاح وحفظه على الخادم! أصبح حسابه VIP بدون إعلانات.`
-          : `Granted ad-free VIP status to ${cleanEmail}!`,
-      );
-      setNewAdFreeEmail("");
+    setAddingEmail(true);
+    try {
+      const ok = await addEmail(cleanEmail);
+      if (ok) {
+        toast.success(
+          lang === "ar"
+            ? `تم إعفاء ${cleanEmail} بنجاح وحفظه على الخادم! أصبح حسابه VIP بدون إعلانات.`
+            : `Granted ad-free VIP status to ${cleanEmail}!`,
+        );
+        setNewAdFreeEmail("");
+      }
+    } finally {
+      setAddingEmail(false);
     }
   };
 
-  const handleRemoveAdFreeEmail = (target: string) => {
-    removeEmail(target);
-    toast.success(t.adFreeRemoved);
+  const handleRemoveAdFreeEmail = async (target: string) => {
+    if (normalizeEmail(target) === PRIMARY_ADMIN_EMAIL) {
+      toast.error(
+        lang === "ar"
+          ? "لا يمكن حذف بريد مدير النظام الأساسي من قائمة الإعفاء"
+          : "Cannot remove primary admin from exemptions",
+      );
+      return;
+    }
+    setRemovingEmail(target);
+    try {
+      await removeEmail(target);
+      toast.success(t.adFreeRemoved);
+    } finally {
+      setRemovingEmail(null);
+    }
   };
 
   useEffect(() => {
@@ -461,59 +481,76 @@ export function AuthModal() {
                   <Button
                     type="submit"
                     size="sm"
-                    className="h-8 text-xs font-bold px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white shrink-0 gap-1"
+                    disabled={addingEmail}
+                    className="h-8 text-xs font-bold px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white shrink-0 gap-1 disabled:opacity-50"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    {t.adFreeAddBtn}
+                    {addingEmail ? "..." : t.adFreeAddBtn}
                   </Button>
                 </form>
 
                 {adFreeEmails.length > 0 ? (
-                  <div className="max-h-28 overflow-y-auto space-y-1.5 pt-1 pr-1">
-                    {adFreeEmails.map((emailItem) => (
-                      <div
-                        key={emailItem}
-                        className="flex items-center justify-between px-2.5 py-1.5 bg-background/80 rounded-lg border border-border/60 text-xs"
-                      >
-                        <div className="flex items-center gap-1.5 overflow-hidden">
-                          <Crown className="w-3 h-3 text-amber-500 shrink-0" />
-                          <span className="truncate font-medium text-foreground text-[11px]">
-                            {emailItem}
-                          </span>
+                  <div className="max-h-32 overflow-y-auto space-y-1.5 pt-1 pr-1">
+                    {adFreeEmails.map((emailItem) => {
+                      const isPrimary = emailItem === PRIMARY_ADMIN_EMAIL;
+                      const isDeleting = removingEmail === emailItem;
+                      return (
+                        <div
+                          key={emailItem}
+                          className="flex items-center justify-between px-2.5 py-1.5 bg-background/80 rounded-lg border border-border/60 text-xs"
+                        >
+                          <div className="flex items-center gap-1.5 overflow-hidden">
+                            <Crown className="w-3 h-3 text-amber-500 shrink-0" />
+                            <span className="truncate font-medium text-foreground text-[11px]">
+                              {emailItem}
+                            </span>
+                            {isPrimary && (
+                              <span className="text-[9px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold shrink-0">
+                                {lang === "ar" ? "المدير الأساسي" : "Primary Admin"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const link = `${window.location.origin}/?vip=${encodeURIComponent(emailItem)}`;
+                                navigator.clipboard.writeText(link);
+                                toast.success(
+                                  lang === "ar"
+                                    ? `تم نسخ رابط تفعيل الـ VIP! أرسل هذا الرابط لـ ${emailItem} ليفتحه على جهازه وتختفي الإعلانات فوراً 👑`
+                                    : `Copied activation link! Send this link to ${emailItem}`,
+                                );
+                              }}
+                              title={
+                                lang === "ar" ? "نسخ رابط التفعيل للمستخدم" : "Copy activation link"
+                              }
+                              className="h-6 text-[10px] px-2 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15 rounded-md font-bold flex items-center gap-1"
+                            >
+                              <Copy className="w-3 h-3" />
+                              <span>{lang === "ar" ? "نسخ الرابط" : "Copy Link"}</span>
+                            </Button>
+                            {!isPrimary && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={isDeleting}
+                                onClick={() => handleRemoveAdFreeEmail(emailItem)}
+                                title={t.adFreeRemoveBtn}
+                                className="w-6 h-6 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-md shrink-0 disabled:opacity-50"
+                              >
+                                {isDeleting ? (
+                                  <span className="text-[10px] animate-pulse">...</span>
+                                ) : (
+                                  <Trash2 className="w-3 h-3" />
+                                )}
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              const link = `${window.location.origin}/?vip=${encodeURIComponent(emailItem)}`;
-                              navigator.clipboard.writeText(link);
-                              toast.success(
-                                lang === "ar"
-                                  ? `تم نسخ رابط تفعيل الـ VIP! أرسل هذا الرابط لـ ${emailItem} ليفتحه على جهازه وتختفي الإعلانات فوراً 👑`
-                                  : `Copied activation link! Send this link to ${emailItem}`,
-                              );
-                            }}
-                            title={
-                              lang === "ar" ? "نسخ رابط التفعيل للمستخدم" : "Copy activation link"
-                            }
-                            className="h-6 text-[10px] px-2 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15 rounded-md font-bold flex items-center gap-1"
-                          >
-                            <Copy className="w-3 h-3" />
-                            <span>{lang === "ar" ? "نسخ الرابط" : "Copy Link"}</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveAdFreeEmail(emailItem)}
-                            title={t.adFreeRemoveBtn}
-                            className="w-6 h-6 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-md shrink-0"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-[11px] text-muted-foreground italic text-center py-1">

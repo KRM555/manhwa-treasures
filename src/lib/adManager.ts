@@ -44,24 +44,27 @@ export function setLocalAuthUser(user: LocalAuthUser | null): void {
   window.dispatchEvent(new CustomEvent("local_auth_changed", { detail: user }));
 }
 
-// Read saved list of exempt emails
+// Read saved list of exempt emails (Primary admin is always permanently exempt)
 export function getAdFreeEmails(): string[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === "undefined") return [PRIMARY_ADMIN_EMAIL];
   try {
     const raw = localStorage.getItem(STORAGE_KEY_EXEMPT);
-    if (!raw) return [];
+    if (!raw) return [PRIMARY_ADMIN_EMAIL];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map((e: string) => normalizeEmail(e)) : [];
+    const list = Array.isArray(parsed) ? parsed.map((e: string) => normalizeEmail(e)) : [];
+    return Array.from(new Set([PRIMARY_ADMIN_EMAIL, ...list]));
   } catch (e) {
     console.error("Error reading ad-free emails:", e);
-    return [];
+    return [PRIMARY_ADMIN_EMAIL];
   }
 }
 
 // Save list of exempt emails
 export function saveAdFreeEmails(emails: string[]): void {
   if (typeof window === "undefined") return;
-  const unique = Array.from(new Set(emails.map((e) => normalizeEmail(e)).filter(Boolean)));
+  const unique = Array.from(
+    new Set([PRIMARY_ADMIN_EMAIL, ...emails.map((e) => normalizeEmail(e)).filter(Boolean)]),
+  );
   localStorage.setItem(STORAGE_KEY_EXEMPT, JSON.stringify(unique));
   window.dispatchEvent(new CustomEvent("ad_exemptions_changed", { detail: unique }));
 }
@@ -114,9 +117,46 @@ export function addAdFreeEmail(email: string): boolean {
   return true;
 }
 
+export async function addAdFreeEmailAsync(email: string): Promise<boolean> {
+  const norm = normalizeEmail(email);
+  if (!norm || !norm.includes("@")) return false;
+  const current = getAdFreeEmails();
+  const next = Array.from(new Set([...current, norm]));
+  saveAdFreeEmails(next);
+
+  const tasks: Promise<any>[] = [];
+  try {
+    tasks.push(
+      supabase
+        .from("vip_users")
+        .upsert({ email: norm }, { onConflict: "email" })
+        .then(({ error }) => {
+          if (error) console.debug("Supabase VIP sync note:", error.message);
+        })
+        .catch(() => {}),
+    );
+  } catch (e) {
+    console.debug("Supabase sync caught:", e);
+  }
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    tasks.push(
+      fetch("/api/ad-exemptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: norm, action: "add" }),
+      }).catch((err) => console.debug("Syncing ad exemption error:", err)),
+    );
+  }
+
+  await Promise.allSettled(tasks);
+  return true;
+}
+
 // Remove an email from ad-free list (deletes from Supabase vip_users & local server)
 export function removeAdFreeEmail(email: string): boolean {
   const norm = normalizeEmail(email);
+  if (!norm || norm === PRIMARY_ADMIN_EMAIL) return false;
   const current = getAdFreeEmails();
   const next = current.filter((e) => e !== norm);
   saveAdFreeEmails(next);
@@ -143,6 +183,43 @@ export function removeAdFreeEmail(email: string): boolean {
       body: JSON.stringify({ email: norm, action: "remove" }),
     }).catch((err) => console.debug("Syncing ad exemption removal error:", err));
   }
+  return true;
+}
+
+export async function removeAdFreeEmailAsync(email: string): Promise<boolean> {
+  const norm = normalizeEmail(email);
+  if (!norm || norm === PRIMARY_ADMIN_EMAIL) return false;
+  const current = getAdFreeEmails();
+  const next = current.filter((e) => e !== norm);
+  saveAdFreeEmails(next);
+
+  const tasks: Promise<any>[] = [];
+  try {
+    tasks.push(
+      supabase
+        .from("vip_users")
+        .delete()
+        .eq("email", norm)
+        .then(({ error }) => {
+          if (error) console.debug("Supabase VIP delete note:", error.message);
+        })
+        .catch(() => {}),
+    );
+  } catch (e) {
+    console.debug("Supabase delete caught:", e);
+  }
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    tasks.push(
+      fetch("/api/ad-exemptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: norm, action: "remove" }),
+      }).catch((err) => console.debug("Syncing ad exemption removal error:", err)),
+    );
+  }
+
+  await Promise.allSettled(tasks);
   return true;
 }
 
@@ -220,20 +297,40 @@ export function useAdStatus() {
 
     // Initial fetch of exempt emails from Supabase vip_users table
     const fetchSupabaseVips = async () => {
+      let supabaseOk = false;
       try {
         const { data, error } = await supabase.from("vip_users").select("email");
         if (!error && Array.isArray(data)) {
+          supabaseOk = true;
           const remoteVips = data
             .map((item: { email: string }) => normalizeEmail(item.email))
             .filter(Boolean);
-          const current = getAdFreeEmails();
-          const merged = Array.from(new Set([...current, ...remoteVips]));
-          saveAdFreeEmails(merged);
-          setAdFreeEmails(merged);
-          checkActiveUser(null, merged);
+          // Remote Supabase is authoritative: do NOT resurrect deleted emails!
+          const updated = Array.from(new Set([PRIMARY_ADMIN_EMAIL, ...remoteVips]));
+          saveAdFreeEmails(updated);
+          setAdFreeEmails(updated);
+          checkActiveUser(null, updated);
+          return;
         }
       } catch (err) {
         console.debug("Supabase VIP query note:", err);
+      }
+
+      // Fallback: If Supabase is not available or offline, fetch from central server API
+      if (!supabaseOk && typeof window !== "undefined" && window.location?.origin) {
+        fetch("/api/ad-exemptions")
+          .then((res) => res.json())
+          .then((data) => {
+            if (data?.success && Array.isArray(data.exempts)) {
+              const serverVips = data.exempts.map((e: string) => normalizeEmail(e)).filter(Boolean);
+              // Server list is authoritative fallback: do NOT resurrect deleted emails!
+              const updated = Array.from(new Set([PRIMARY_ADMIN_EMAIL, ...serverVips]));
+              saveAdFreeEmails(updated);
+              setAdFreeEmails(updated);
+              checkActiveUser(null, updated);
+            }
+          })
+          .catch(() => {});
       }
     };
     fetchSupabaseVips();
@@ -249,22 +346,6 @@ export function useAdStatus() {
         .subscribe();
     } catch (e) {
       console.debug("Supabase realtime caught:", e);
-    }
-
-    // Initial fetch of exempt emails from central server fallback
-    if (typeof window !== "undefined" && window.location?.origin) {
-      fetch("/api/ad-exemptions")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data?.success && Array.isArray(data.exempts)) {
-            // MERGE with current list, NEVER wipe out Supabase VIPs!
-            const merged = Array.from(new Set([...getAdFreeEmails(), ...data.exempts]));
-            saveAdFreeEmails(merged);
-            setAdFreeEmails(merged);
-            checkActiveUser(null, merged);
-          }
-        })
-        .catch(() => {});
     }
 
     // 1. Initial auth check
@@ -323,7 +404,7 @@ export function useAdStatus() {
     isAdmin,
     isAdFree,
     adFreeEmails,
-    addEmail: addAdFreeEmail,
-    removeEmail: removeAdFreeEmail,
+    addEmail: addAdFreeEmailAsync,
+    removeEmail: removeAdFreeEmailAsync,
   };
 }
