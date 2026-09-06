@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { useI18n } from "@/lib/language";
+import { sortImageNames, hasPageNumber, filterZipEntries } from "@/lib/zipUtils";
 
 interface UploadZoneProps {
   imagePreview: string | null;
@@ -39,14 +40,6 @@ export function UploadZone({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useI18n();
 
-  const sortImageNames = (names: string[]) =>
-    [...names].sort((a, b) =>
-      a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
-    );
-
-  const hasPageNumber = (name: string) =>
-    /(?:^|[^0-9])(?:page|pg|p|chapter|ch)?[_ -]?[0-9]+(?:[^0-9]|$)/i.test(name);
-
   const processFiles = async (files: FileList | File[]) => {
     const fileList = Array.from(files);
     const zipFile = fileList.find((f) => f.name.endsWith(".zip") || f.type.includes("zip"));
@@ -58,9 +51,7 @@ export function UploadZone({
         const zipContent = await zip.loadAsync(zipFile);
         const extractedImages: { url: string; name: string }[] = [];
 
-        const entries = Object.keys(zipContent.files).filter((filename) =>
-          /\.(jpg|jpeg|png|webp)$/i.test(filename),
-        );
+        const entries = filterZipEntries(Object.keys(zipContent.files));
 
         if (entries.length === 0) {
           toast.error(t.zipNoImages);

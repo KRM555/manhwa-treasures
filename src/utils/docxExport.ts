@@ -1,10 +1,7 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from "docx";
 import { MangaPageItem } from "@/types/manga";
 
-export async function exportChapterToDocx(
-  pages: MangaPageItem[],
-  isRTL: boolean = true,
-): Promise<void> {
+export function createChapterDocxDocument(pages: MangaPageItem[], isRTL: boolean = true): Document {
   const docChildren: Paragraph[] = [];
 
   // Title Document Heading
@@ -111,7 +108,7 @@ export async function exportChapterToDocx(
     );
   });
 
-  const doc = new Document({
+  return new Document({
     sections: [
       {
         properties: {},
@@ -119,7 +116,13 @@ export async function exportChapterToDocx(
       },
     ],
   });
+}
 
+export async function exportChapterToDocx(
+  pages: MangaPageItem[],
+  isRTL: boolean = true,
+): Promise<void> {
+  const doc = createChapterDocxDocument(pages, isRTL);
   const blob = await Packer.toBlob(doc);
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

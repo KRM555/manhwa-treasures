@@ -37,6 +37,17 @@ export const SidebarInfoCards: React.FC = () => {
                     {step.title}
                   </p>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">{step.desc}</p>
+                  {step.num === 1 && (
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline mt-1"
+                    >
+                      <span>{t.keyHelpOpen}</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
                 </div>
               </div>
             );

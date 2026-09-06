@@ -9,6 +9,22 @@ export interface DetectedBubble {
   category: string;
 }
 
+export interface ExtractedText {
+  id: string;
+  originalText: string;
+  translatedText: string;
+  category: string;
+  topPercent?: number;
+  fromTM?: boolean;
+}
+
+export interface TagRule {
+  value: string;
+  label: string;
+  prefix: string;
+  suffix: string;
+}
+
 export interface MangaPageItem {
   id: string;
   fileName: string;

@@ -1,12 +1,27 @@
 import { AuthModal } from "@/components/AuthModal";
 import { supabase } from "@/lib/supabase";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { UploadZone } from "@/components/UploadZone";
 import { SidebarInfoCards } from "@/components/SidebarInfoCards";
+import { AdvancedGlossaryModal } from "@/components/AdvancedGlossaryModal";
+import { TranslationMemoryModal } from "@/components/TranslationMemoryModal";
+import {
+  DEFAULT_GEMINI_MODELS,
+  MODEL_FALLBACK_MAP,
+  doesModelSupportThinking,
+  fetchSupportedGeminiModels,
+} from "@/lib/models";
+import { formatGlossaryForPrompt } from "@/lib/glossaryUtils";
+import { lookupTranslationMemory, saveToTranslationMemory } from "@/lib/translationMemory";
+import { parseJsonFromResponse } from "@/lib/geminiParser";
+import { formatTextWithRules } from "@/lib/exportUtils";
+import { parseTagRulesFromText, exportTagsToText } from "@/lib/tagUtils";
+import { GeminiModelMeta, GlossaryItem } from "@/types";
 import { TranslationConfig } from "@/types/manga";
 import {
   ArrowLeft,
   Download,
+  Upload,
   Sparkles,
   RefreshCw,
   Sun,
@@ -42,8 +57,12 @@ import {
   GripVertical,
   Pencil,
   Check,
+  Zap,
+  Database,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -79,6 +98,7 @@ export interface ExtractedText {
   translatedText: string;
   category: string;
   topPercent?: number;
+  fromTM?: boolean;
 }
 
 interface ImageItem {
@@ -92,12 +112,6 @@ export interface TagRule {
   label: string;
   prefix: string;
   suffix: string;
-}
-
-export interface GlossaryItem {
-  id: string;
-  original: string;
-  translation: string;
 }
 
 const DEFAULT_TAGS: TagRule[] = [
@@ -115,22 +129,13 @@ const DEFAULT_TAGS: TagRule[] = [
 export default function Index() {
   const { t, lang, toggleLang } = useI18n();
 
-  const AVAILABLE_MODELS = [
-    { id: "gemini-3.6-flash", label: "Gemini 3.6 Flash" },
-    { id: "gemini-3.7-flash", label: "Gemini 3.7 Flash" },
-    { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash" },
-    { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro" },
-    { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite" },
-  ];
-
-  // Map display model IDs to real Google Gemini API model IDs (with fallback chain)
-  const MODEL_API_MAP: Record<string, string[]> = {
-    "gemini-3.6-flash": ["gemini-3.6-flash", "gemini-2.5-flash"],
-    "gemini-3.7-flash": ["gemini-3.7-flash", "gemini-3.6-flash"],
-    "gemini-3.8-flash": ["gemini-3.8-flash", "gemini-3.7-flash"],
-    "gemini-3.1-pro-preview": ["gemini-3.1-pro-preview", "gemini-3.8-flash"],
-    "gemini-3.5-flash-lite": ["gemini-3.5-flash-lite", "gemini-3.6-flash"],
-  };
+  const [availableModels, setAvailableModels] = useState<GeminiModelMeta[]>(DEFAULT_GEMINI_MODELS);
+  const [processingMode, setProcessingMode] = useState<"ocr_and_translate" | "ocr_only">(() => {
+    return (localStorage.getItem("manga_processing_mode") as any) || "ocr_and_translate";
+  });
+  const [showGlossaryModal, setShowGlossaryModal] = useState<boolean>(false);
+  const [showTMModal, setShowTMModal] = useState<boolean>(false);
+  const [retranslatingBubbleId, setRetranslatingBubbleId] = useState<string | null>(null);
 
   const [images, setImages] = useState<ImageItem[]>(() => {
     const saved = localStorage.getItem("manga_studio_images");
@@ -152,13 +157,27 @@ export default function Index() {
     return localStorage.getItem("gemini_api_key") || import.meta.env["VITE_GEMINI_API_KEY"] || "";
   });
 
-  const [selectedModel, setSelectedModel] = useState<string>("gemini-3.6-flash");
-  const [extendedThinking, setExtendedThinking] = useState<boolean>(false);
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    return localStorage.getItem("gemini_selected_model") || "gemini-3.6-flash";
+  });
+  const [extendedThinking, setExtendedThinking] = useState<boolean>(() => {
+    return localStorage.getItem("gemini_extended_thinking") === "true";
+  });
 
-  const [config, setConfig] = useState<TranslationConfig>({
-    targetLanguage: "ar",
-    extractSFX: true,
-    detectVerticalText: true,
+  const [config, setConfig] = useState<TranslationConfig>(() => {
+    const saved = localStorage.getItem("manga_translation_config");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // fallback
+      }
+    }
+    return {
+      targetLanguage: "ar",
+      extractSFX: true,
+      detectVerticalText: true,
+    };
   });
 
   const [resultsMap, setResultsMap] = useState<Record<string, ExtractedText[]>>(() => {
@@ -184,6 +203,8 @@ export default function Index() {
   const [newTagLabel, setNewTagLabel] = useState("");
   const [newTagPrefix, setNewTagPrefix] = useState("");
   const [newTagSuffix, setNewTagSuffix] = useState("");
+  const [showTagFormatHelp, setShowTagFormatHelp] = useState(false);
+  const tagFileInputRef = useRef<HTMLInputElement>(null);
 
   const [findText, setFindText] = useState("");
   const [replaceText, setReplaceText] = useState("");
@@ -196,6 +217,18 @@ export default function Index() {
   useEffect(() => {
     localStorage.setItem("gemini_selected_model", selectedModel);
   }, [selectedModel]);
+
+  useEffect(() => {
+    localStorage.setItem("gemini_extended_thinking", String(extendedThinking));
+  }, [extendedThinking]);
+
+  useEffect(() => {
+    localStorage.setItem("manga_processing_mode", processingMode);
+  }, [processingMode]);
+
+  useEffect(() => {
+    localStorage.setItem("manga_translation_config", JSON.stringify(config));
+  }, [config]);
 
   useEffect(() => {
     localStorage.setItem("custom_manga_tags", JSON.stringify(tags));
@@ -236,7 +269,22 @@ export default function Index() {
   const cleanApiKey = apiKey.replace(/[\s\r\n\t"']/g, "").trim();
 
   const getEffectiveModel = () =>
-    AVAILABLE_MODELS.find((m) => m.id === selectedModel)?.label || selectedModel;
+    availableModels.find((m) => m.id === selectedModel)?.label || selectedModel;
+
+  // Auto-fetch supported models whenever cleanApiKey looks valid
+  useEffect(() => {
+    if (cleanApiKey && cleanApiKey.startsWith("AIzaSy")) {
+      fetchSupportedGeminiModels(cleanApiKey).then(({ filteredModels }) => {
+        if (filteredModels && filteredModels.length > 0) {
+          setAvailableModels(filteredModels);
+          // If current selection is not in the verified list, adjust to first valid
+          setSelectedModel((prev) =>
+            filteredModels.some((m) => m.id === prev) ? prev : filteredModels[0].id,
+          );
+        }
+      });
+    }
+  }, [cleanApiKey]);
 
   const handleTestApiKey = async () => {
     if (!cleanApiKey) {
@@ -246,19 +294,19 @@ export default function Index() {
 
     setIsTestingKey(true);
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanApiKey}`,
-      );
-      const data = await res.json();
+      const { allRemoteIds, filteredModels, error } = await fetchSupportedGeminiModels(cleanApiKey);
 
-      if (res.ok && data?.models) {
-        toast.success(t.keyValid(data.models.length));
-      } else {
-        const errMsg = data?.error?.message || `HTTP ${res.status}: ${res.statusText}`;
-        toast.error(t.googleError(errMsg), { duration: 6000 });
+      if (error) {
+        toast.error(t.googleError(error), { duration: 6000 });
         if (cleanApiKey.startsWith("AQ.")) {
           setShowKeyHelpModal(true);
         }
+      } else {
+        setAvailableModels(filteredModels);
+        if (filteredModels.length > 0 && !filteredModels.some((m) => m.id === selectedModel)) {
+          setSelectedModel(filteredModels[0].id);
+        }
+        toast.success(t.keyValid(allRemoteIds.length));
       }
     } catch (err: any) {
       toast.error(t.connectionFailed(err.message));
@@ -400,6 +448,52 @@ export default function Index() {
     setTags(tags.filter((_, i) => i !== index));
   };
 
+  const handleImportTagsFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (!content || !content.trim()) {
+        toast.error(t.tagsImportError);
+        return;
+      }
+
+      const result = parseTagRulesFromText(content, tags);
+      if (result.totalParsed === 0) {
+        toast.error(t.tagsImportError);
+        return;
+      }
+
+      setTags(result.tags);
+      toast.success(
+        t.tagsImportSuccess.replace("{count}", String(result.totalParsed)),
+      );
+    };
+
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const handleExportTagsFile = () => {
+    const textContent = exportTagsToText(tags);
+    const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `manga_tags_settings_${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(
+      lang === "ar"
+        ? "تم تصدير ملف إعدادات العلامات بنجاح!"
+        : "Tag settings exported successfully!",
+    );
+  };
+
   const handleAddGlossaryItem = () => {
     if (!newGlossaryOrig.trim() || !newGlossaryTrans.trim()) {
       toast.error(t.glossaryFieldsRequired);
@@ -420,11 +514,8 @@ export default function Index() {
     setGlossary(glossary.filter((item) => item.id !== id));
   };
 
-  const formatTextWithRules = (text: string, categoryVal: string): string => {
-    const cleanText = text.trim();
-    const rule = tags.find((t) => t.value === categoryVal);
-    if (!rule) return cleanText;
-    return `${rule.prefix}${cleanText}${rule.suffix}`;
+  const formatItemText = (text: string, categoryVal: string): string => {
+    return formatTextWithRules(text, categoryVal, tags);
   };
 
   const handleMoveItem = (index: number, direction: "up" | "down") => {
@@ -448,7 +539,7 @@ export default function Index() {
   const handleCopyPageFormatted = () => {
     if (currentItems.length === 0) return;
     const fullText = currentItems
-      .map((item) => formatTextWithRules(item.translatedText, item.category))
+      .map((item) => formatItemText(item.translatedText, item.category))
       .join("\n\n");
     navigator.clipboard.writeText(fullText);
     toast.success(t.copied);
@@ -486,31 +577,6 @@ export default function Index() {
     toast.success(t.replacedOccurrences(totalReplacements));
   };
 
-  const parseJsonFromResponse = (raw: string): ExtractedText[] | null => {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (match) {
-        try {
-          return JSON.parse(match[1]!);
-        } catch {
-          // ignore
-        }
-      }
-      const firstBracket = raw.indexOf("[");
-      const lastBracket = raw.lastIndexOf("]");
-      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-        try {
-          return JSON.parse(raw.substring(firstBracket, lastBracket + 1));
-        } catch {
-          // ignore
-        }
-      }
-    }
-    return null;
-  };
-
   const processGeminiRequest = async (
     targetImg: ImageItem,
     ocrOnly = false,
@@ -524,10 +590,7 @@ export default function Index() {
     const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : "image/jpeg";
     const base64Data = targetImg.url.replace(/^data:image\/[a-zA-Z+]+;base64,/, "");
 
-    const glossaryPrompt =
-      glossary.length > 0
-        ? `Strictly use this Glossary for translated names/terms: ${glossary.map((g) => `${g.original} => ${g.translation}`).join("; ")}.`
-        : "";
+    const glossaryPrompt = formatGlossaryForPrompt(glossary, config.targetLanguage);
 
     const refContextPrompt = referenceText
       ? `\nIMPORTANT CONTEXT: Use the following text from a previous chapter as a reference to maintain consistent tone, style, and character naming:\n"""\n${referenceText.substring(0, 5000)}\n"""\n`
@@ -573,7 +636,10 @@ ${refContextPrompt}
 Return ONLY a valid JSON array of objects with keys: id, originalText, translatedText, category, topPercent.
 The category field must be one of: (${tagValues}).`;
 
-    const apiModelIds = MODEL_API_MAP[selectedModel] || MODEL_API_MAP["gemini-3.6-flash"]!;
+    const apiModelIds = MODEL_FALLBACK_MAP[selectedModel] || [
+      "gemini-3.6-flash",
+      "gemini-2.5-flash",
+    ];
     const RETRYABLE_STATUS = new Set([429, 500, 503]);
     const MAX_RETRIES = 2;
 
@@ -582,7 +648,7 @@ The category field must be one of: (${tagValues}).`;
 
     for (let modelIdx = 0; modelIdx < apiModelIds.length; modelIdx++) {
       const apiModel = apiModelIds[modelIdx]!;
-      const supportsThinkingLevel = apiModel.startsWith("gemini-3.");
+      const canThink = doesModelSupportThinking(apiModel);
 
       if (modelIdx > 0) {
         toast.info(t.fallbackModel(apiModel), { duration: 4000 });
@@ -611,7 +677,7 @@ The category field must be one of: (${tagValues}).`;
               generationConfig: {
                 temperature: 0.1,
                 responseMimeType: "application/json",
-                ...(extendedThinking && supportsThinkingLevel
+                ...(extendedThinking && canThink
                   ? {
                       thinkingConfig: {
                         thinkingLevel: "high",
@@ -647,12 +713,37 @@ The category field must be one of: (${tagValues}).`;
           if (rawJsonText) {
             const parsedItems = parseJsonFromResponse(rawJsonText);
             if (parsedItems && Array.isArray(parsedItems)) {
-              const formatted = parsedItems.map((item, idx) => ({
-                ...item,
-                id: item.id || `item_${idx}_${Date.now()}`,
-                topPercent: item.topPercent ?? Math.min(95, Math.max(5, (idx + 1) * 15)),
-                translatedText: ocrOnly ? item.originalText : item.translatedText,
-              }));
+              const formatted = parsedItems.map((item, idx) => {
+                let trans = ocrOnly ? item.originalText : item.translatedText;
+                let fromTM = false;
+
+                // Check Translation Memory if in full mode
+                if (!ocrOnly && item.originalText) {
+                  const { match } = lookupTranslationMemory(
+                    item.originalText,
+                    config.targetLanguage,
+                  );
+                  if (match && match.translatedText) {
+                    trans = match.translatedText;
+                    fromTM = true;
+                  } else if (trans && trans !== item.originalText) {
+                    saveToTranslationMemory(
+                      item.originalText,
+                      trans,
+                      config.targetLanguage,
+                      item.category,
+                    );
+                  }
+                }
+
+                return {
+                  ...item,
+                  id: item.id || `item_${idx}_${Date.now()}`,
+                  topPercent: item.topPercent ?? Math.min(95, Math.max(5, (idx + 1) * 15)),
+                  translatedText: trans,
+                  fromTM,
+                };
+              });
               return { data: formatted };
             }
           }
@@ -672,6 +763,89 @@ The category field must be one of: (${tagValues}).`;
       return { data: null, error: t.allModelsOverloaded };
     }
     return { data: null, error: lastErrorDetails || "Failed to connect to Google Gemini" };
+  };
+
+  const handleReTranslateBubble = async (item: ExtractedText) => {
+    if (!cleanApiKey) {
+      toast.error(t.enterApiKey);
+      return;
+    }
+    if (!item.originalText?.trim()) {
+      toast.error(lang === "ar" ? "النص الأصلي فارغ" : "Original text is empty");
+      return;
+    }
+
+    setRetranslatingBubbleId(item.id);
+    try {
+      const targetLangName = config.targetLanguage === "ar" ? "Arabic (العربية)" : "English";
+      const glossaryPrompt = formatGlossaryForPrompt(glossary, config.targetLanguage);
+
+      const bubblePrompt = `You are an expert manga and webtoon translator.
+Translate the following dialogue/bubble text accurately and naturally into ${targetLangName}.
+Context category: "${item.category}".
+Original text:
+"""${item.originalText}"""
+
+${glossaryPrompt}
+
+Output ONLY the translated text directly without any quotes, annotations, or explanations.`;
+
+      const apiModelIds = MODEL_FALLBACK_MAP[selectedModel] || [
+        "gemini-3.6-flash",
+        "gemini-2.5-flash",
+      ];
+      let newTranslation = "";
+      let succeeded = false;
+
+      for (const apiModel of apiModelIds) {
+        const canThink = doesModelSupportThinking(apiModel);
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${cleanApiKey}`;
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: bubblePrompt }] }],
+              generationConfig: {
+                temperature: 0.2,
+                ...(extendedThinking && canThink
+                  ? { thinkingConfig: { thinkingLevel: "high" } }
+                  : {}),
+              },
+            }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            const translated = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            if (translated) {
+              newTranslation = translated;
+              succeeded = true;
+              break;
+            }
+          }
+        } catch (e) {
+          console.warn(`Bubble translation failed on ${apiModel}`, e);
+        }
+      }
+
+      if (succeeded && newTranslation) {
+        updateItem(item.id, "translatedText", newTranslation);
+        saveToTranslationMemory(
+          item.originalText,
+          newTranslation,
+          config.targetLanguage,
+          item.category,
+        );
+        toast.success(t.reTranslateSuccess);
+      } else {
+        toast.error(lang === "ar" ? "تعذرت إعادة ترجمة الفقرة" : "Failed to re-translate bubble");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error during bubble re-translation");
+    } finally {
+      setRetranslatingBubbleId(null);
+    }
   };
 
   const handleAnalyzeCurrent = async (ocrOnly = false): Promise<void> => {
@@ -780,7 +954,7 @@ The category field must be one of: (${tagValues}).`;
         fullOutput += `=== Page ${realIndex + 1}: ${img.name} ===\n\n`;
         itemsForImg.forEach((item) => {
           const contentToExport = textType === "original" ? item.originalText : item.translatedText;
-          fullOutput += formatTextWithRules(contentToExport, item.category) + "\n\n";
+          fullOutput += formatItemText(contentToExport, item.category) + "\n\n";
         });
         fullOutput += "\n";
       }
@@ -844,13 +1018,24 @@ The category field must be one of: (${tagValues}).`;
           <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl px-2 h-9">
             <Cpu className="w-4 h-4 text-orange-500 shrink-0" />
             <Select value={selectedModel} onValueChange={setSelectedModel}>
-              <SelectTrigger className="h-7 text-xs font-bold border-0 bg-transparent focus:ring-0 w-44">
+              <SelectTrigger className="h-7 text-xs font-bold border-0 bg-transparent focus:ring-0 w-52">
                 <SelectValue placeholder={t.selectModel} />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
-                {AVAILABLE_MODELS.map((m) => (
+                {availableModels.map((m) => (
                   <SelectItem key={m.id} value={m.id} className="text-xs font-medium">
-                    {m.label}
+                    <div className="flex items-center justify-between gap-2.5 w-full">
+                      <span>{m.label}</span>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                          m.badge === "stable"
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                            : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                        }`}
+                      >
+                        {m.badge === "stable" ? t.modelStable : t.modelPreview}
+                      </span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -876,71 +1061,25 @@ The category field must be one of: (${tagValues}).`;
             {t.newProject}
           </Button>
 
-          {/* نافذة القاموس */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button
-                variant="outline"
-                className="h-9 gap-1.5 text-xs font-bold px-3 rounded-xl border-orange-500/40 text-orange-600 dark:text-orange-400"
-              >
-                <BookOpen className="w-4 h-4 text-orange-500" />
-                {t.glossaryTitle} ({glossary.length})
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md rounded-2xl">
-              <DialogHeader>
-                <DialogTitle className="text-base font-bold">{t.glossaryTitle}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
-                  {glossary.map((g) => (
-                    <div
-                      key={g.id}
-                      className="flex items-center justify-between bg-muted/40 p-2 rounded-lg text-xs"
-                    >
-                      <span className="font-bold text-foreground">{g.original}</span>
-                      <span className="text-orange-500 font-bold">←</span>
-                      <span className="font-bold text-foreground">{g.translation}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteGlossaryItem(g.id)}
-                        className="h-6 w-6 text-red-500"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  ))}
-                  {glossary.length === 0 && (
-                    <p className="text-xs text-center text-muted-foreground py-4">
-                      {t.glossaryEmpty}
-                    </p>
-                  )}
-                </div>
+          {/* زر قاموس المصطلحات المتقدم */}
+          <Button
+            variant="outline"
+            onClick={() => setShowGlossaryModal(true)}
+            className="h-9 gap-1.5 text-xs font-bold px-3 rounded-xl border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10"
+          >
+            <BookOpen className="w-4 h-4 text-orange-500" />
+            {t.glossaryTitle} ({glossary.length})
+          </Button>
 
-                <div className="border-t border-border pt-3 space-y-2">
-                  <Input
-                    placeholder={t.origTerm}
-                    value={newGlossaryOrig}
-                    onChange={(e) => setNewGlossaryOrig(e.target.value)}
-                    className="h-8 text-xs"
-                  />
-                  <Input
-                    placeholder={t.transTerm}
-                    value={newGlossaryTrans}
-                    onChange={(e) => setNewGlossaryTrans(e.target.value)}
-                    className="h-8 text-xs"
-                  />
-                  <Button
-                    onClick={handleAddGlossaryItem}
-                    className="w-full h-8 text-xs font-bold bg-orange-600 text-white"
-                  >
-                    <Plus className="w-3.5 h-3.5 ml-1" /> {t.addGlossary}
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          {/* زر ذاكرة الترجمة TM */}
+          <Button
+            variant="outline"
+            onClick={() => setShowTMModal(true)}
+            className="h-9 gap-1.5 text-xs font-bold px-3 rounded-xl border-border text-foreground hover:bg-muted"
+          >
+            <Database className="w-4 h-4 text-orange-500" />
+            {t.tmTitle}
+          </Button>
 
           {/* إعدادات العلامات */}
           <Dialog>
@@ -950,7 +1089,7 @@ The category field must be one of: (${tagValues}).`;
                 {t.tagSettings}
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md rounded-2xl">
+            <DialogContent className="max-w-lg rounded-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="text-base font-bold flex items-center justify-between">
                   <span>{t.tagSettings}</span>
@@ -958,23 +1097,114 @@ The category field must be one of: (${tagValues}).`;
                     variant="ghost"
                     size="sm"
                     onClick={() => setTags(DEFAULT_TAGS)}
-                    className="text-xs text-muted-foreground hover:text-orange-500 gap-1"
+                    className="text-xs text-muted-foreground hover:text-orange-500 gap-1 h-8 px-2"
                   >
                     <RotateCcw className="w-3.5 h-3.5" /> {t.resetDefaultTags}
                   </Button>
                 </DialogTitle>
               </DialogHeader>
+
               <div className="space-y-4 py-2">
                 <p className="text-[11px] text-muted-foreground bg-muted/30 p-3 rounded-lg border border-border/50">
                   {t.tagHint}
                 </p>
+
+                {/* شريط أدوات استيراد وتصدير ملف TXT */}
+                <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-muted/50 rounded-xl border border-border">
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={tagFileInputRef}
+                      type="file"
+                      accept=".txt,text/plain"
+                      onChange={handleImportTagsFile}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => tagFileInputRef.current?.click()}
+                      className="h-8 gap-1.5 text-xs font-bold border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      {t.uploadTagsTxt}
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExportTagsFile}
+                      className="h-8 gap-1.5 text-xs font-bold"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      {t.exportTagsTxt}
+                    </Button>
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowTagFormatHelp(!showTagFormatHelp)}
+                    className="h-8 text-xs text-muted-foreground hover:text-orange-500 gap-1 px-2"
+                  >
+                    <Info className="w-3.5 h-3.5" />
+                    {t.tagTxtTemplate}
+                  </Button>
+                </div>
+
+                {/* بطاقة توضيحية لنموذج ملف الـ TXT */}
+                {showTagFormatHelp && (
+                  <div className="p-3 bg-muted/80 rounded-xl border border-border text-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-foreground">
+                        {lang === "ar" ? "صيغة ملف TXT المدعومة:" : "Supported TXT Format:"}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[11px] text-orange-600"
+                        onClick={() => {
+                          const sample = `"": حوار\n(): أفكار\n<>: صراخ\n[]: نظام\n**: هاتف\nNA: راوي\nsfx: مؤثر صوتي\nST: همس`;
+                          navigator.clipboard.writeText(sample);
+                          toast.success(t.copied);
+                        }}
+                      >
+                        <Copy className="w-3 h-3 me-1" />
+                        {t.copyBlock}
+                      </Button>
+                    </div>
+                    <p className="text-muted-foreground text-[11px] leading-relaxed">
+                      {lang === "ar"
+                        ? "اكتب كل علامة في سطر مع وضع نقطتين (:) ثم الشرح أو التصنيف، وسيتم تصنيفها وتحديثها تلقائياً:"
+                        : "Write each tag on a line with a colon (:) and its description. Tags will be auto-classified:"}
+                    </p>
+                    <pre className="bg-background/90 p-2.5 rounded-lg font-mono text-[11px] dir-ltr text-foreground overflow-x-auto border border-border/60">
+{`"": حوار
+(): أفكار
+<>: صراخ
+[]: نظام
+**: هاتف
+NA: راوي
+sfx: مؤثر صوتي
+ST: همس`}
+                    </pre>
+                  </div>
+                )}
+
+                {/* قائمة العلامات مع التصنيف */}
                 <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
                   {tags.map((tag, i) => (
                     <div
                       key={tag.value || i}
                       className="flex items-center gap-1.5 bg-muted/40 p-2 rounded-lg text-xs"
                     >
-                      <span className="font-bold w-24 truncate">{getTagLabel(tag, lang)}</span>
+                      <div className="flex flex-col w-28 shrink-0">
+                        <span className="font-bold truncate" title={getTagLabel(tag, lang)}>
+                          {getTagLabel(tag, lang)}
+                        </span>
+                        <span className="text-[9px] text-muted-foreground font-mono truncate">
+                          {tag.value}
+                        </span>
+                      </div>
                       <Input
                         value={tag.prefix}
                         onChange={(e) => {
@@ -982,8 +1212,9 @@ The category field must be one of: (${tagValues}).`;
                           updated[i]!.prefix = e.target.value;
                           setTags(updated);
                         }}
-                        className="h-7 text-xs w-16"
+                        className="h-7 text-xs w-20 dir-ltr font-mono"
                         placeholder="Prefix"
+                        title="Prefix"
                       />
                       <Input
                         value={tag.suffix}
@@ -992,14 +1223,15 @@ The category field must be one of: (${tagValues}).`;
                           updated[i]!.suffix = e.target.value;
                           setTags(updated);
                         }}
-                        className="h-7 text-xs w-16"
+                        className="h-7 text-xs w-16 dir-ltr font-mono"
                         placeholder="Suffix"
+                        title="Suffix"
                       />
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDeleteTag(i)}
-                        className="h-7 w-7 text-red-500"
+                        className="h-7 w-7 text-red-500 shrink-0"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
@@ -1019,18 +1251,18 @@ The category field must be one of: (${tagValues}).`;
                       placeholder={t.tagPrefix}
                       value={newTagPrefix}
                       onChange={(e) => setNewTagPrefix(e.target.value)}
-                      className="h-8 text-xs"
+                      className="h-8 text-xs dir-ltr font-mono"
                     />
                     <Input
                       placeholder={t.tagSuffix}
                       value={newTagSuffix}
                       onChange={(e) => setNewTagSuffix(e.target.value)}
-                      className="h-8 text-xs"
+                      className="h-8 text-xs dir-ltr font-mono"
                     />
                   </div>
                   <Button
                     onClick={handleAddCustomTag}
-                    className="w-full h-8 text-xs font-bold bg-orange-600 text-white"
+                    className="w-full h-8 text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white"
                   >
                     <Plus className="w-3.5 h-3.5 me-1" /> {t.add}
                   </Button>
@@ -1171,23 +1403,45 @@ The category field must be one of: (${tagValues}).`;
               <li>{t.keyHelpS3}</li>
               <li>{t.keyHelpS4}</li>
             </ol>
-            <div className="pt-2 flex gap-2">
-              <Button
-                className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs h-10 rounded-xl"
-                onClick={() => {
-                  window.open("https://aistudio.google.com/app/apikey", "_blank");
-                  setShowKeyHelpModal(false);
-                }}
-              >
-                {t.keyHelpOpen} <ExternalLink className="w-4 h-4 mr-2 ml-2" />
-              </Button>
-              <Button
-                variant="outline"
-                className="text-xs h-10 rounded-xl"
-                onClick={() => setShowKeyHelpModal(false)}
-              >
-                {t.close}
-              </Button>
+            <div className="pt-2 flex flex-col gap-2.5">
+              <div className="flex gap-2">
+                <Button
+                  asChild
+                  className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs h-10 rounded-xl cursor-pointer"
+                >
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {t.keyHelpOpen} <ExternalLink className="w-4 h-4 mr-2 ml-2" />
+                  </a>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-xs h-10 rounded-xl"
+                  onClick={() => setShowKeyHelpModal(false)}
+                >
+                  {t.close}
+                </Button>
+              </div>
+              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-muted/60 text-xs border border-border">
+                <span className="text-muted-foreground text-[11px] font-mono truncate flex-1 dir-ltr text-left select-all">
+                  https://aistudio.google.com/app/apikey
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs font-semibold text-orange-600 hover:text-orange-700 hover:bg-orange-500/10 rounded-lg gap-1 shrink-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText("https://aistudio.google.com/app/apikey");
+                    toast.success(t.copiedLink);
+                  }}
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>{t.copyLink}</span>
+                </Button>
+              </div>
             </div>
           </div>
         </DialogContent>
@@ -1409,79 +1663,108 @@ The category field must be one of: (${tagValues}).`;
               </Button>
             </div>
 
-            <div className="flex flex-col gap-1.5 w-full sm:w-auto">
-              <Label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
-                <RefreshCw className="w-3 h-3 text-orange-500" />
-                {t.reAnalysisLabel}
+            <div className="flex flex-wrap items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="border-orange-500/40 text-orange-600 dark:text-orange-400 gap-1.5 text-xs font-bold rounded-xl"
+                  >
+                    <FileDown className="w-4 h-4" /> {t.exportOriginal}{" "}
+                    <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-xl">
+                  <DropdownMenuItem
+                    onClick={() => handleExportText("current", "original")}
+                    className="text-xs cursor-pointer font-medium"
+                  >
+                    {t.exportCurrentPage}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleExportText("all", "original")}
+                    className="text-xs cursor-pointer font-medium"
+                  >
+                    {t.exportAllPages}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="bg-orange-600 hover:bg-orange-700 text-white gap-1.5 text-xs font-bold rounded-xl shadow-sm">
+                    <Download className="w-4 h-4" /> {t.exportTranslated}{" "}
+                    <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-xl">
+                  <DropdownMenuItem
+                    onClick={() => handleExportText("current", "translated")}
+                    className="text-xs cursor-pointer font-medium"
+                  >
+                    {t.exportCurrentPage}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleExportText("all", "translated")}
+                    className="text-xs cursor-pointer font-medium"
+                  >
+                    {t.exportAllPages}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          {/* صندوق اقتراحات وإعادة التحليل الموسّع */}
+          <div className="bg-card p-4 rounded-2xl border border-orange-500/30 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <RefreshCw className="w-4 h-4 text-orange-500" />
+                <span>{t.reAnalysisLabel}</span>
               </Label>
-              <div className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-xl border border-border/60">
-                <Input
-                  placeholder={t.reAnalysisPlaceholder}
-                  value={reAnalysisNote}
-                  onChange={(e) => setReAnalysisNote(e.target.value)}
-                  className="h-7 text-xs w-48 bg-background"
-                />
-              </div>
+              <span className="text-[11px] text-muted-foreground">
+                {lang === "ar"
+                  ? "اكتب تفاصيل أو ملاحظات عن الفقرات المفقودة لتوجيه النموذج بدقة عند إعادة التحليل"
+                  : "Specify notes about missed text bubbles to guide Gemini accurately"}
+              </span>
+            </div>
+            <Textarea
+              placeholder={t.reAnalysisPlaceholder}
+              value={reAnalysisNote}
+              onChange={(e) => setReAnalysisNote(e.target.value)}
+              rows={2}
+              className="w-full min-h-[72px] text-xs leading-relaxed bg-muted/20 border-border rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 p-3 resize-y"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  variant="ghost"
                   onClick={() => handleAnalyzeCurrent(false)}
                   disabled={isAnalyzing}
-                  className="gap-2 text-xs font-bold rounded-xl"
+                  className="bg-orange-600 hover:bg-orange-700 text-white gap-2 text-xs font-bold h-8 px-4 rounded-xl shadow-sm"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzing ? "animate-spin" : ""}`} />{" "}
-                  {t.reAnalyze}
+                  <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzing ? "animate-spin" : ""}`} />
+                  {t.reAnalyze} (OCR + {lang === "ar" ? "ترجمة" : "Translate"})
                 </Button>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="border-orange-500/40 text-orange-600 dark:text-orange-400 gap-1.5 text-xs font-bold rounded-xl"
-                    >
-                      <FileDown className="w-4 h-4" /> {t.exportOriginal}{" "}
-                      <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="rounded-xl">
-                    <DropdownMenuItem
-                      onClick={() => handleExportText("current", "original")}
-                      className="text-xs cursor-pointer font-medium"
-                    >
-                      {t.exportCurrentPage}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleExportText("all", "original")}
-                      className="text-xs cursor-pointer font-medium"
-                    >
-                      {t.exportAllPages}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button className="bg-orange-600 hover:bg-orange-700 text-white gap-1.5 text-xs font-bold rounded-xl shadow-sm">
-                      <Download className="w-4 h-4" /> {t.exportTranslated}{" "}
-                      <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="rounded-xl">
-                    <DropdownMenuItem
-                      onClick={() => handleExportText("current", "translated")}
-                      className="text-xs cursor-pointer font-medium"
-                    >
-                      {t.exportCurrentPage}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleExportText("all", "translated")}
-                      className="text-xs cursor-pointer font-medium"
-                    >
-                      {t.exportAllPages}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Button
+                  onClick={() => handleAnalyzeCurrent(true)}
+                  disabled={isAnalyzing}
+                  variant="outline"
+                  className="border-orange-500/40 text-orange-600 dark:text-orange-400 gap-2 text-xs font-bold h-8 px-4 rounded-xl"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  {t.reAnalyze} (OCR {lang === "ar" ? "فقط" : "Only"})
+                </Button>
               </div>
+              {reAnalysisNote && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setReAnalysisNote("")}
+                  className="h-7 text-xs text-muted-foreground hover:text-red-500"
+                >
+                  {lang === "ar" ? "مسح الملاحظة" : "Clear note"}
+                </Button>
+              )}
             </div>
           </div>
 
@@ -1596,7 +1879,32 @@ The category field must be one of: (${tagValues}).`;
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {item.fromTM && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          <Zap className="w-3 h-3 text-emerald-500" />
+                          {t.translatedFromTM}
+                        </span>
+                      )}
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={retranslatingBubbleId === item.id || isAnalyzing}
+                        onClick={() => handleReTranslateBubble(item)}
+                        className="h-7 px-2.5 text-[11px] gap-1 font-bold border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 rounded-lg"
+                        title={t.reTranslateBubble}
+                      >
+                        <RefreshCw
+                          className={`w-3 h-3 ${retranslatingBubbleId === item.id ? "animate-spin text-orange-500" : ""}`}
+                        />
+                        <span>
+                          {retranslatingBubbleId === item.id
+                            ? t.reTranslating
+                            : t.reTranslateBubble}
+                        </span>
+                      </Button>
+
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1658,6 +1966,17 @@ The category field must be one of: (${tagValues}).`;
           </div>
         </div>
       )}
+
+      {/* Advanced Glossary Management Modal */}
+      <AdvancedGlossaryModal
+        open={showGlossaryModal}
+        onOpenChange={setShowGlossaryModal}
+        glossary={glossary}
+        onUpdateGlossary={setGlossary}
+      />
+
+      {/* Translation Memory Modal */}
+      <TranslationMemoryModal open={showTMModal} onOpenChange={setShowTMModal} />
     </div>
   );
 }
