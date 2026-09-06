@@ -1,10 +1,14 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from "docx";
-import { MangaPageItem } from "@/types/manga";
+import { MangaPageItem, TagRule } from "@/types/manga";
 import { extractPageNumber } from "@/lib/zipUtils";
+import { formatTextWithRules } from "@/lib/exportUtils";
 
 export interface DocxExportOptions {
   startPageNumber?: number;
   useFilenamePageNumber?: boolean;
+  tags?: TagRule[];
+  textType?: "original" | "translated";
+  extractSFX?: boolean;
 }
 
 export function createChapterDocxDocument(
@@ -98,7 +102,16 @@ export function createChapterDocxDocument(
     }
 
     page.items.forEach((item) => {
-      const formattedText = item.translatedText.trim();
+      if (
+        options?.extractSFX === false &&
+        (item.category === "sfx" || item.category?.toLowerCase() === "sfx")
+      ) {
+        return;
+      }
+      const rawText = options?.textType === "original" ? item.originalText : item.translatedText;
+      const formattedText = formatTextWithRules(rawText, item.category, options?.tags || []);
+      if (!formattedText.trim()) return;
+
       docChildren.push(
         new Paragraph({
           children: [
@@ -138,13 +151,14 @@ export async function exportChapterToDocx(
   pages: MangaPageItem[],
   isRTL: boolean = true,
   options?: DocxExportOptions,
+  customFileName?: string,
 ): Promise<void> {
   const doc = createChapterDocxDocument(pages, isRTL, options);
   const blob = await Packer.toBlob(doc);
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `Manga_Chapter_Typer_${Date.now()}.docx`;
+  link.download = customFileName || `Manga_Chapter_Typer_${Date.now()}.docx`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

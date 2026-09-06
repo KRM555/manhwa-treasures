@@ -21,6 +21,7 @@ export interface ScriptExportOptions {
   currentImageId?: string;
   startPageNumber?: number;
   useFilenamePageNumber?: boolean;
+  extractSFX?: boolean;
 }
 
 export function buildScriptText(options: ScriptExportOptions): string {
@@ -33,6 +34,7 @@ export function buildScriptText(options: ScriptExportOptions): string {
     currentImageId,
     startPageNumber = 1,
     useFilenamePageNumber = true,
+    extractSFX,
   } = options;
 
   const targetImages =
@@ -55,12 +57,24 @@ export function buildScriptText(options: ScriptExportOptions): string {
         }
       }
 
-      fullOutput += `=== Page ${pageNumberToDisplay}: ${img.name} ===\n\n`;
-      itemsForImg.forEach((item) => {
-        const contentToExport = textType === "original" ? item.originalText : item.translatedText;
-        fullOutput += formatTextWithRules(contentToExport, item.category, tags) + "\n\n";
+      const validItems = itemsForImg.filter((item) => {
+        if (
+          extractSFX === false &&
+          (item.category === "sfx" || item.category?.toLowerCase() === "sfx")
+        ) {
+          return false;
+        }
+        return true;
       });
-      fullOutput += "\n";
+
+      if (validItems.length > 0) {
+        fullOutput += `=== Page ${pageNumberToDisplay}: ${img.name} ===\n\n`;
+        validItems.forEach((item) => {
+          const contentToExport = textType === "original" ? item.originalText : item.translatedText;
+          fullOutput += formatTextWithRules(contentToExport, item.category, tags) + "\n\n";
+        });
+        fullOutput += "\n";
+      }
     }
   });
 

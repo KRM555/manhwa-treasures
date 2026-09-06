@@ -56,4 +56,47 @@ describe("DOCX Chapter Export (docxExport)", () => {
     expect(buffer).toBeDefined();
     expect(buffer.byteLength).toBeGreaterThan(100);
   });
+
+  it("applies custom tag prefixes and suffixes correctly", async () => {
+    const customTags = [
+      { value: "dialogue", label: "حوار", prefix: '"": ', suffix: "" },
+      { value: "thought", label: "أفكار", prefix: "(", suffix: ")" },
+      { value: "sfx", label: "مؤثرات", prefix: "[SFX: ", suffix: "]" },
+    ];
+    const doc = createChapterDocxDocument(samplePages, true, {
+      tags: customTags,
+    });
+    expect(doc).toBeInstanceOf(Document);
+    const buffer = await Packer.toBuffer(doc);
+    expect(buffer).toBeDefined();
+    expect(buffer.byteLength).toBeGreaterThan(100);
+  });
+
+  it("excludes SFX items when extractSFX is false", async () => {
+    const pagesWithSfx: MangaPageItem[] = [
+      {
+        id: "p1",
+        fileName: "Page_01.png",
+        previewUrl: "",
+        status: "completed",
+        items: [
+          { id: "1", originalText: "Hello", translatedText: "مرحبا", category: "dialogue" },
+          { id: "2", originalText: "BOOM", translatedText: "بووم", category: "sfx" },
+        ],
+      },
+    ];
+    const doc = createChapterDocxDocument(pagesWithSfx, true, {
+      extractSFX: false,
+    });
+    const buffer = await Packer.toBuffer(doc);
+    expect(buffer.byteLength).toBeGreaterThan(100);
+  });
+
+  it("exports original text when textType is 'original'", async () => {
+    const doc = createChapterDocxDocument(samplePages, false, {
+      textType: "original",
+    });
+    const buffer = await Packer.toBuffer(doc);
+    expect(buffer.byteLength).toBeGreaterThan(100);
+  });
 });

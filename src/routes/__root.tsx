@@ -79,22 +79,38 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Manhwa Studio — Webtoon OCR & Translation Tool" },
+      { title: "Manhwa TransTool Studio — Webtoon OCR & Translation Tool" },
       {
         name: "description",
         content:
           "Extract, translate, and format webtoon and manga scripts with Gemini-powered OCR, tag formatting, glossaries, and DOCX export.",
       },
-      { name: "author", content: "Manhwa Studio" },
-      { property: "og:title", content: "Manhwa Studio — Webtoon OCR & Translation Tool" },
+      { name: "author", content: "Manhwa TransTool Studio" },
+      { name: "application-name", content: "Manhwa TransTool Studio" },
+      { name: "apple-mobile-web-app-title", content: "Manhwa TransTool Studio" },
+      { property: "og:site_name", content: "Manhwa TransTool Studio" },
+      { property: "og:title", content: "Manhwa TransTool Studio — Webtoon OCR & Translation Tool" },
       {
         property: "og:description",
         content:
           "Extract, translate, and format webtoon and manga scripts with Gemini-powered OCR, tag formatting, glossaries, and DOCX export.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://manhwa-treasures.vercel.app/" },
+      { property: "og:image", content: "/logo.png" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
+      {
+        name: "twitter:title",
+        content: "Manhwa TransTool Studio — Webtoon OCR & Translation Tool",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "Extract, translate, and format webtoon and manga scripts with Gemini-powered OCR, tag formatting, glossaries, and DOCX export.",
+      },
+      { name: "twitter:image", content: "/logo.png" },
+      { name: "theme-color", content: "#ea580c" },
       {
         name: "google-site-verification",
         content: "AidrXOQOTZznJZZ4GNuj4Nz5FM7sH8EV7-8nwA1t9mE",
@@ -105,7 +121,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.ico", sizes: "any" },
+      { rel: "icon", type: "image/png", sizes: "48x48", href: "/favicon-48x48.png" },
+      { rel: "icon", type: "image/png", sizes: "96x96", href: "/favicon-96x96.png" },
+      { rel: "icon", type: "image/png", sizes: "192x192", href: "/favicon-192x192.png" },
+      { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
+      { rel: "manifest", href: "/site.webmanifest" },
     ],
   }),
   shellComponent: RootShell,
@@ -119,6 +140,34 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "Manhwa TransTool Studio",
+              alternateName: [
+                "Manhwa TransTool",
+                "Manhwa Studio",
+                "Manhwa Treasures",
+                "منهوا ترانزتول ستوديو",
+                "منهوا ستوديو",
+              ],
+              url: "https://manhwa-treasures.vercel.app/",
+              description:
+                "Extract, translate, and format webtoon and manga scripts with Gemini-powered OCR, tag formatting, glossaries, and DOCX export.",
+              publisher: {
+                "@type": "Organization",
+                name: "Manhwa TransTool Studio",
+                logo: {
+                  "@type": "ImageObject",
+                  url: "https://manhwa-treasures.vercel.app/logo.png",
+                },
+              },
+            }),
+          }}
+        />
       </head>
       <body>
         {children}

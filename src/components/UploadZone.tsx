@@ -71,7 +71,11 @@ export function UploadZone({
           toast.warning("بعض أسماء الملفات لا تحتوي على رقم صفحة واضح؛ راجع الترتيب يدويًا.");
         }
 
-        const selectedEntries = sortedEntries.slice(0, 50);
+        const MAX_ZIP_IMAGES = 25;
+        if (sortedEntries.length > MAX_ZIP_IMAGES) {
+          toast.info(`تم تحديد أول ${MAX_ZIP_IMAGES} صورة من ملف الـ ZIP حسب الحد الأقصى.`);
+        }
+        const selectedEntries = sortedEntries.slice(0, MAX_ZIP_IMAGES);
         for (const entryName of selectedEntries) {
           const fileData = await zipContent.files[entryName]!.async("base64");
           const ext = entryName.split(".").pop()?.toLowerCase() || "jpeg";
@@ -97,10 +101,16 @@ export function UploadZone({
       return;
     }
 
-    const imageFiles = fileList
+    const allImages = fileList
       .filter((f) => f.type.startsWith("image/"))
-      .sort((a, b) => compareImageFilenames(a.name, b.name))
-      .slice(0, 50);
+      .sort((a, b) => compareImageFilenames(a.name, b.name));
+
+    const MAX_DIRECT_IMAGES = 25;
+    if (allImages.length > MAX_DIRECT_IMAGES) {
+      toast.info(`تم تحديد أول ${MAX_DIRECT_IMAGES} صورة حسب الحد الأقصى.`);
+    }
+
+    const imageFiles = allImages.slice(0, MAX_DIRECT_IMAGES);
     if (imageFiles.length === 0) return;
 
     if (imageFiles.some((file) => !hasPageNumber(file.name))) {

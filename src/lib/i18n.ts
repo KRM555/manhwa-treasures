@@ -1,7 +1,7 @@
 export type Lang = "ar" | "en";
 export { useI18n } from "./language";
 
-export const BRAND_NAME = "Manhwa Transtool Studio";
+export const BRAND_NAME = "Manhwa TransTool Studio";
 
 export const UI_TEXT = {
   ar: {
@@ -24,7 +24,7 @@ export const UI_TEXT = {
     translatedText: "النص المترجم / الناتج:",
     noImage: "لا توجد صورة محددة",
     page: "صفحة",
-    multiImageLimit: "الحد الأقصى هو 50 صورة فقط",
+    multiImageLimit: "الحد الأقصى هو 25 صورة فقط",
     sortPagesNumerically: "ترتيب الصفحات رقمياً",
     sortPagesDone: "تم ترتيب الصفحات تصاعدياً حسب الأرقام",
     selectAllPages: "تحديد الكل",
@@ -174,7 +174,7 @@ export const UI_TEXT = {
     copiedLink: "تم نسخ الرابط!",
     // Upload zone
     dropTitle: "اسحب وأسقط صفحات المانجا / الويب تون هنا",
-    dropSubtitle: "يدعم رفع حتى 15 صورة دفعة واحدة أو ملف مضغوط ZIP (PNG, JPG, WEBP)",
+    dropSubtitle: "يدعم رفع حتى 25 صورة دفعة واحدة أو ملف مضغوط ZIP (PNG, JPG, WEBP)",
     uploadBtn: "اختر صوراً أو ملف ZIP",
     controlsTitle: "إعدادات الترجمة والاستخراج",
     targetLang: "اللغة المستهدفة للترجمة",
@@ -261,7 +261,7 @@ export const UI_TEXT = {
     translatedText: "Translated / Result Text:",
     noImage: "No image selected",
     page: "Page",
-    multiImageLimit: "Maximum limit is 50 images",
+    multiImageLimit: "Maximum limit is 25 images",
     sortPagesNumerically: "Sort pages numerically",
     sortPagesDone: "Pages sorted in ascending order by numbers",
     selectAllPages: "Select All",
@@ -410,7 +410,7 @@ export const UI_TEXT = {
     copyLink: "Copy Link",
     copiedLink: "Link copied!",
     dropTitle: "Drag & Drop your Manga / Manhwa pages",
-    dropSubtitle: "Supports uploading up to 15 images or a ZIP archive (PNG, JPG, WEBP, ZIP)",
+    dropSubtitle: "Supports uploading up to 25 images or a ZIP archive (PNG, JPG, WEBP, ZIP)",
     uploadBtn: "Upload Images or ZIP",
     controlsTitle: "Translation & Extraction Controls",
     targetLang: "Target language",

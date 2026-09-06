@@ -155,5 +155,21 @@ describe("Export Utilities (exportUtils)", () => {
       expect(script).toContain("=== Page 21: scene_alpha.jpg ===");
       expect(script).toContain("=== Page 22: scene_beta.jpg ===");
     });
+
+    it("excludes SFX items when extractSFX is false", () => {
+      const script = buildScriptText({
+        images: sampleImages,
+        resultsMap: sampleResults,
+        textType: "translated",
+        tags: sampleTags,
+        scope: "all",
+        extractSFX: false,
+      });
+
+      expect(script).toContain("=== Page 1: Page_01.png ===");
+      expect(script).toContain('"توقف مكانك!":');
+      expect(script).not.toContain("[بام!]:");
+      expect(script).not.toContain("=== Page 2: Page_02.png ===");
+    });
   });
 });

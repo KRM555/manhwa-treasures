@@ -348,8 +348,10 @@ export default function Index() {
     }
   };
 
+  const MAX_IMAGES_LIMIT = 25;
+
   const handleImageSelected = (url: string, name: string) => {
-    if (images.length >= 50) {
+    if (images.length >= MAX_IMAGES_LIMIT) {
       toast.error(t.multiImageLimit);
       return;
     }
@@ -386,7 +388,7 @@ export default function Index() {
     }
 
     setImages((prev) => {
-      const combined = [...prev, ...formatted].slice(0, 50);
+      const combined = [...prev, ...formatted].slice(0, MAX_IMAGES_LIMIT);
       return combined.sort((a, b) => compareImageFilenames(a.name, b.name));
     });
     setActiveImageIndex(0);
@@ -681,13 +683,27 @@ export default function Index() {
       ? `\nCRITICAL — RE-ANALYSIS INSTRUCTIONS FROM THE USER:\nThe user reports that some text regions were missed or incorrectly extracted in a previous analysis.\nPay special attention to the following user notes and make sure to explicitly scan and extract the requested areas:\n"""\n${reAnalysisHint.trim()}\n"""\nRe-examine the entire image carefully, focusing on the areas the user mentioned. Include ALL text blocks, especially any that were previously missed.\n`
       : "";
 
-    const tagDefinitions = tags
+    const activeTags = config.extractSFX ? tags : tags.filter((t) => t.value !== "sfx");
+
+    const tagDefinitions = activeTags
       .map(
         (t) =>
           `- value: "${t.value}" | label: "${t.label}" | prefix: "${t.prefix}" | suffix: "${t.suffix}"`,
       )
       .join("\n");
-    const tagValues = tags.map((t) => t.value).join(", ");
+    const tagValues = activeTags.map((t) => t.value).join(", ");
+
+    const sfxPromptRule = config.extractSFX
+      ? `Extract dialogue, narration, thoughts, and sound effects (SFX / onomatopoeia).`
+      : `CRITICAL MANDATE — NO SOUND EFFECTS (SFX):
+The user has EXPLICITLY DISABLED sound effects (SFX) extraction.
+You MUST COMPLETELY SKIP, IGNORE, and NEVER extract or translate sound effects, onomatopoeia, sound words, or action sounds (e.g. BAM, CRASH, BOOM, WHOOSH, ドン, パチ, 쿵, 쾅, etc.) drawn in or around panels.
+Extract ONLY spoken character dialogues, narration boxes, internal thoughts, phone messages, and system windows.
+Do NOT output any sound effect items, and NEVER use category "sfx".`;
+
+    const orientationRule = config.detectVerticalText
+      ? `Detect and read both horizontal and vertical text layouts (traditional manga vertical reading order: top-to-bottom, right-to-left).`
+      : `Detect and read horizontal text layouts.`;
 
     const tagInstructions = `IMPORTANT — TAG CLASSIFICATION RULES:
 You must classify each extracted text block into one of the following currently active custom tags.
@@ -701,6 +717,8 @@ ${tagDefinitions}`;
     const promptText = ocrOnly
       ? `You are an expert manga and webtoon OCR system.
 Extract all original texts top to bottom in natural reading order.
+${sfxPromptRule}
+${orientationRule}
 Estimate topPercent (0 to 100) position of each bubble on the page.
 ${tagInstructions}
 ${reAnalysisPrompt}
@@ -708,6 +726,8 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
 The category field must be one of: (${tagValues}).`
       : `You are an expert manga and webtoon OCR and translator.
 Extract all texts from the image in reading order (top to bottom).
+${sfxPromptRule}
+${orientationRule}
 Estimate topPercent (0 to 100) relative vertical position on the page for each text bubble.
 ${tagInstructions}
 ${reAnalysisPrompt}
@@ -825,7 +845,15 @@ The category field must be one of: (${tagValues}).`;
                   fromTM,
                 };
               });
-              return { data: formatted };
+
+              const filtered = config.extractSFX
+                ? formatted
+                : formatted.filter((item) => {
+                    const cat = (item.category || "").trim().toLowerCase();
+                    return cat !== "sfx" && cat !== "sound" && cat !== "onomatopoeia";
+                  });
+
+              return { data: filtered };
             }
           }
 
@@ -1099,6 +1127,7 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
       currentImageId: activeImage?.id,
       startPageNumber,
       useFilenamePageNumber,
+      extractSFX: config.extractSFX,
     });
 
     if (!fullOutput.trim()) {
@@ -1132,7 +1161,10 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
     toast.success(t.exported(fileName));
   };
 
-  const handleExportDocx = async (scope: "current" | "all"): Promise<void> => {
+  const handleExportDocx = async (
+    scope: "current" | "all",
+    textType: "original" | "translated" = "translated",
+  ): Promise<void> => {
     const targetImages = scope === "current" ? (activeImage ? [activeImage] : []) : images;
     if (targetImages.length === 0) return;
 
@@ -1149,12 +1181,32 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
       })),
     }));
 
+    const currentPageDisplay = activeImage
+      ? getDisplayPageNumber(activeImage, activeImageIndex)
+      : activeImageIndex + 1;
+    const fileName =
+      textType === "original"
+        ? scope === "current"
+          ? `page_${currentPageDisplay}_ocr_original_script.docx`
+          : `full_ocr_original_script.docx`
+        : scope === "current"
+          ? `page_${currentPageDisplay}_translated_script.docx`
+          : `full_translated_script.docx`;
+
     try {
-      await exportChapterToDocx(targetPages, config.targetLanguage === "ar", {
-        startPageNumber,
-        useFilenamePageNumber,
-      });
-      toast.success(t.exported("DOCX"));
+      await exportChapterToDocx(
+        targetPages,
+        config.targetLanguage === "ar",
+        {
+          startPageNumber,
+          useFilenamePageNumber,
+          tags,
+          textType,
+          extractSFX: config.extractSFX,
+        },
+        fileName,
+      );
+      toast.success(t.exported(fileName));
     } catch (err) {
       toast.error("فشل في إنشاء ملف Word (DOCX)");
     }
@@ -1175,11 +1227,20 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
     >
       {/* Header */}
       <header className="mb-6 flex flex-col xl:flex-row items-start xl:items-center justify-between border-b border-border pb-4 gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-orange-600 dark:text-orange-500">
-            {BRAND_NAME}
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">{t.subtitle}</p>
+        <div className="flex items-center gap-3">
+          <img
+            id="app-header-logo"
+            src="/logo.png"
+            alt={`${BRAND_NAME} Logo`}
+            className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl object-cover shadow-sm border border-orange-200 dark:border-orange-900/50 shrink-0 bg-white"
+            referrerPolicy="no-referrer"
+          />
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-orange-600 dark:text-orange-500">
+              {BRAND_NAME}
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">{t.subtitle}</p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
@@ -1714,7 +1775,7 @@ ST: همس`}
           <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto">
             <Images className="w-4 h-4 text-orange-500 shrink-0" />
             <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">
-              {t.page} ({images.length}/50):
+              {t.page} ({images.length}/{MAX_IMAGES_LIMIT}):
             </span>
             <div
               className="flex gap-1.5 overflow-x-auto py-1"
@@ -2034,6 +2095,19 @@ ST: همس`}
                   >
                     {t.exportAllPages} (TXT)
                   </DropdownMenuItem>
+                  <div className="h-[1px] bg-border/60 my-1"></div>
+                  <DropdownMenuItem
+                    onClick={() => handleExportDocx("current", "original")}
+                    className="text-xs cursor-pointer font-medium text-orange-600 dark:text-orange-400"
+                  >
+                    {t.exportDocxCurrent}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleExportDocx("all", "original")}
+                    className="text-xs cursor-pointer font-medium text-orange-600 dark:text-orange-400"
+                  >
+                    {t.exportDocxAll}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -2196,7 +2270,7 @@ ST: همس`}
               </div>
             </div>
 
-            {/* أزرار تنفيذ إعادة التحليل */}
+            {/* أزرار تنفيذ إعادة التحليل مع خيار التحكم بالمؤثرات الصوتية */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -2240,6 +2314,42 @@ ST: همس`}
                   </span>
                 </Button>
               </div>
+
+              {/* خيار سريع للتحكم في استخراج المؤثرات الصوتية */}
+              <label
+                className={`flex items-center gap-2 cursor-pointer px-3 py-1 rounded-xl border text-xs font-semibold select-none transition-colors ${
+                  config.extractSFX
+                    ? "bg-orange-500/10 border-orange-500/30 text-orange-700 dark:text-orange-300"
+                    : "bg-muted/40 border-border text-muted-foreground"
+                }`}
+                title={
+                  config.extractSFX
+                    ? lang === "ar"
+                      ? "المؤثرات الصوتية مفعلة (انقر للتعطيل)"
+                      : "SFX extraction active (click to disable)"
+                    : lang === "ar"
+                      ? "المؤثرات الصوتية معطلة ولن يتم استخراجها (انقر للتفعيل)"
+                      : "SFX extraction disabled (click to enable)"
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={config.extractSFX}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    handleConfigChange({ extractSFX: checked });
+                  }}
+                  className="w-3.5 h-3.5 rounded border-orange-500 accent-orange-600 cursor-pointer shrink-0"
+                />
+                <span>
+                  {t.sfxLabel}
+                  {!config.extractSFX && (
+                    <span className="text-[10px] opacity-80 mr-1 ml-1 text-red-500 font-normal">
+                      ({lang === "ar" ? "معطل" : "Off"})
+                    </span>
+                  )}
+                </span>
+              </label>
             </div>
           </div>
 
