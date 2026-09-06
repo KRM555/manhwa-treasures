@@ -306,9 +306,18 @@ export const TranslationViewer: React.FC<TranslationViewerProps> = ({
                       <Label className="text-[11px] font-bold uppercase text-muted-foreground">
                         Translated Text ({selectedLang?.name || "Arabic"})
                       </Label>
-                      <span className="text-[10px] text-orange-600 dark:text-orange-400 font-semibold">
-                        Type to live-update
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activeBubble.translatedText) {
+                            navigator.clipboard.writeText(activeBubble.translatedText.trim());
+                            toast.success("Translation copied to clipboard!");
+                          }
+                        }}
+                        className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Copy className="w-3 h-3" /> Quick Copy
+                      </button>
                     </div>
                     <Textarea
                       rows={4}

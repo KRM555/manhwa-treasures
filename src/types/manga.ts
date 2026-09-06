@@ -4,6 +4,11 @@ export interface DetectedBubble {
   y?: number;
   width?: number;
   height?: number;
+  topPercent?: number;
+  leftPercent?: number;
+  widthPercent?: number;
+  heightPercent?: number;
+  confidence?: number;
   originalText: string;
   translatedText: string;
   category: string;
@@ -15,6 +20,10 @@ export interface ExtractedText {
   translatedText: string;
   category: string;
   topPercent?: number;
+  leftPercent?: number;
+  widthPercent?: number;
+  heightPercent?: number;
+  confidence?: number;
   fromTM?: boolean;
 }
 

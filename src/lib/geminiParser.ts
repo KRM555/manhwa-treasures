@@ -76,12 +76,36 @@ export function sanitizeExtractedList(items: any[]): ExtractedText[] {
           ? Math.min(100, Math.max(0, item.topPercent))
           : Math.min(95, Math.max(5, (index + 1) * 15));
 
+      const leftPercent =
+        typeof item.leftPercent === "number" && !isNaN(item.leftPercent)
+          ? Math.min(100, Math.max(0, item.leftPercent))
+          : undefined;
+
+      const widthPercent =
+        typeof item.widthPercent === "number" && !isNaN(item.widthPercent)
+          ? Math.min(100, Math.max(1, item.widthPercent))
+          : undefined;
+
+      const heightPercent =
+        typeof item.heightPercent === "number" && !isNaN(item.heightPercent)
+          ? Math.min(100, Math.max(1, item.heightPercent))
+          : undefined;
+
+      const confidence =
+        typeof item.confidence === "number" && !isNaN(item.confidence)
+          ? Math.min(1, Math.max(0, Math.round(item.confidence * 100) / 100))
+          : undefined;
+
       return {
         id,
         originalText,
         translatedText,
         category,
         topPercent,
+        leftPercent,
+        widthPercent,
+        heightPercent,
+        confidence,
         fromTM: Boolean(item.fromTM),
       };
     });

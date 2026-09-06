@@ -3,8 +3,19 @@ import { supabase } from "@/lib/supabase";
 import React, { useState, useEffect, useRef } from "react";
 import { UploadZone } from "@/components/UploadZone";
 import { SidebarInfoCards } from "@/components/SidebarInfoCards";
+import { AdSlot } from "@/components/AdSlot";
 import { AdvancedGlossaryModal } from "@/components/AdvancedGlossaryModal";
 import { TranslationMemoryModal } from "@/components/TranslationMemoryModal";
+import { GlobalFindReplaceModal } from "@/components/GlobalFindReplaceModal";
+import { SplitBubbleModal } from "@/components/SplitBubbleModal";
+import { WorkspaceTabBar } from "@/components/WorkspaceTabBar";
+import {
+  loadInitialWorkspaces,
+  saveWorkspacesToStorage,
+  createDefaultWorkspace,
+  deriveNextTabName,
+} from "@/lib/workspaceManager";
+import { WorkspaceTab } from "@/types/workspace";
 import {
   DEFAULT_GEMINI_MODELS,
   MODEL_FALLBACK_MAP,
@@ -66,6 +77,7 @@ import {
   Hash,
   CheckSquare,
   Square,
+  Split,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +116,10 @@ export interface ExtractedText {
   translatedText: string;
   category: string;
   topPercent?: number;
+  leftPercent?: number;
+  widthPercent?: number;
+  heightPercent?: number;
+  confidence?: number;
   fromTM?: boolean;
 }
 
@@ -142,6 +158,13 @@ export default function Index() {
   const [showGlossaryModal, setShowGlossaryModal] = useState<boolean>(false);
   const [showTMModal, setShowTMModal] = useState<boolean>(false);
   const [showPageNumberModal, setShowPageNumberModal] = useState<boolean>(false);
+  const [showGlobalFindReplaceModal, setShowGlobalFindReplaceModal] = useState<boolean>(false);
+  const [splitModalBubble, setSplitModalBubble] = useState<{
+    bubble: ExtractedText;
+    index: number;
+  } | null>(null);
+  const [splitInitialSelection, setSplitInitialSelection] = useState<string>("");
+  const [copiedBubbleId, setCopiedBubbleId] = useState<string | null>(null);
   const [retranslatingBubbleId, setRetranslatingBubbleId] = useState<string | null>(null);
 
   const [images, setImages] = useState<ImageItem[]>(() => {
@@ -619,6 +642,143 @@ export default function Index() {
     toast.success(t.copied);
   };
 
+  const handleQuickCopyTranslation = (bubbleId: string, text: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text.trim());
+    setCopiedBubbleId(bubbleId);
+    toast.success(t.copiedTranslationText);
+    setTimeout(() => {
+      setCopiedBubbleId((prev) => (prev === bubbleId ? null : prev));
+    }, 2000);
+  };
+
+  const handleHighlightBubble = (bubbleId: string) => {
+    setHoveredItemId(bubbleId);
+    setTimeout(() => {
+      const el = document.getElementById(`bubble-card-${bubbleId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 150);
+  };
+
+  const handleOpenSplitModal = (
+    bubble: ExtractedText,
+    index: number,
+    initialSelection: string = "",
+  ) => {
+    setSplitModalBubble({ bubble, index });
+    setSplitInitialSelection(initialSelection);
+  };
+
+  const handleConfirmSplitBubble = (
+    bubbleId: string,
+    part1: { originalText: string; translatedText: string; category: string },
+    part2: { originalText: string; translatedText: string; category: string },
+  ) => {
+    if (!activeImage) return;
+    const items = [...currentItems];
+    const index = items.findIndex((i) => i.id === bubbleId);
+    if (index === -1) return;
+
+    const current = items[index]!;
+    const newBubbleId = crypto.randomUUID();
+    const baseTop = current.topPercent ?? (index + 1) * 15;
+
+    const updatedCurrent: ExtractedText = {
+      ...current,
+      originalText: part1.originalText,
+      translatedText: part1.translatedText,
+      category: part1.category,
+    };
+
+    const newBubble: ExtractedText = {
+      id: newBubbleId,
+      originalText: part2.originalText,
+      translatedText: part2.translatedText,
+      category: part2.category,
+      topPercent: Math.min(baseTop + 7, 96),
+      leftPercent: current.leftPercent,
+      widthPercent: current.widthPercent,
+      heightPercent: current.heightPercent,
+      confidence: current.confidence,
+    };
+
+    items.splice(index, 1, updatedCurrent, newBubble);
+    setResultsMap((prev) => ({ ...prev, [activeImage.id]: items }));
+    toast.success(t.splitSuccess);
+  };
+
+  const handleInsertBubbleBelow = (index: number) => {
+    if (!activeImage) return;
+    const items = [...currentItems];
+    const current = items[index];
+    const newBubbleId = crypto.randomUUID();
+    const baseTop = current?.topPercent ?? (index + 1) * 15;
+
+    const newBubble: ExtractedText = {
+      id: newBubbleId,
+      originalText: "",
+      translatedText: "",
+      category: current?.category || "dialogue",
+      topPercent: Math.min(baseTop + 6, 96),
+      leftPercent: current?.leftPercent,
+      widthPercent: current?.widthPercent,
+      heightPercent: current?.heightPercent,
+    };
+
+    items.splice(index + 1, 0, newBubble);
+    setResultsMap((prev) => ({ ...prev, [activeImage.id]: items }));
+    toast.success(t.bubbleAddedSuccess);
+  };
+
+  const handleAddNewBubble = () => {
+    if (!activeImage) return;
+    const items = [...currentItems];
+    const newBubbleId = crypto.randomUUID();
+    const lastItem = items[items.length - 1];
+    const baseTop = lastItem?.topPercent
+      ? Math.min(lastItem.topPercent + 7, 96)
+      : Math.min((items.length + 1) * 15, 96);
+
+    const newBubble: ExtractedText = {
+      id: newBubbleId,
+      originalText: "",
+      translatedText: "",
+      category: "dialogue",
+      topPercent: baseTop,
+    };
+
+    items.push(newBubble);
+    setResultsMap((prev) => ({ ...prev, [activeImage.id]: items }));
+    toast.success(t.bubbleAddedSuccess);
+  };
+
+  const handleDeleteBubble = (bubbleId: string) => {
+    if (!activeImage) return;
+    const items = currentItems.filter((i) => i.id !== bubbleId);
+    setResultsMap((prev) => ({ ...prev, [activeImage.id]: items }));
+    toast.success(t.bubbleDeletedSuccess);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "h") {
+        e.preventDefault();
+        setShowGlobalFindReplaceModal(true);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && view === "results") {
+        const activeTag = document.activeElement?.tagName.toLowerCase();
+        if (activeTag !== "input" && activeTag !== "textarea") {
+          e.preventDefault();
+          setShowGlobalFindReplaceModal(true);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [view]);
+
   const handleCopyPageFormatted = () => {
     if (currentItems.length === 0) return;
     const fullText = currentItems
@@ -714,27 +874,34 @@ The "category" field in your JSON output must be exactly the value string (not t
 Active tags (use only these):
 ${tagDefinitions}`;
 
+    const coordinatesInstruction = `Estimate bubble bounding box percentages and confidence for each text bubble/region on the image:
+- topPercent: vertical position from top of page (0 to 100, number)
+- leftPercent: horizontal position from left of page (0 to 100, number)
+- widthPercent: approximate width of the bubble (e.g. 10 to 45, number)
+- heightPercent: approximate height of the bubble (e.g. 5 to 30, number)
+- confidence: OCR and translation confidence score between 0.0 and 1.0 (e.g. 0.95, number)`;
+
     const promptText = ocrOnly
       ? `You are an expert manga and webtoon OCR system.
 Extract all original texts top to bottom in natural reading order.
 ${sfxPromptRule}
 ${orientationRule}
-Estimate topPercent (0 to 100) position of each bubble on the page.
+${coordinatesInstruction}
 ${tagInstructions}
 ${reAnalysisPrompt}
-Return ONLY a valid JSON array of objects with keys: id, originalText, translatedText, category, topPercent.
+Return ONLY a valid JSON array of objects with keys: id, originalText, translatedText, category, topPercent, leftPercent, widthPercent, heightPercent, confidence.
 The category field must be one of: (${tagValues}).`
       : `You are an expert manga and webtoon OCR and translator.
 Extract all texts from the image in reading order (top to bottom).
 ${sfxPromptRule}
 ${orientationRule}
-Estimate topPercent (0 to 100) relative vertical position on the page for each text bubble.
+${coordinatesInstruction}
 ${tagInstructions}
 ${reAnalysisPrompt}
 Translate all extracted texts to ${config.targetLanguage === "ar" ? "Arabic (العربية)" : "English"}.
 ${glossaryPrompt}
 ${refContextPrompt}
-Return ONLY a valid JSON array of objects with keys: id, originalText, translatedText, category, topPercent.
+Return ONLY a valid JSON array of objects with keys: id, originalText, translatedText, category, topPercent, leftPercent, widthPercent, heightPercent, confidence.
 The category field must be one of: (${tagValues}).`;
 
     const apiModelIds = MODEL_FALLBACK_MAP[selectedModel] || [
@@ -1771,239 +1938,250 @@ ST: همس`}
 
       {/* Bar for images */}
       {images.length > 0 && (
-        <div className="mb-6 p-3 bg-card border border-border rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto">
-            <Images className="w-4 h-4 text-orange-500 shrink-0" />
-            <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">
-              {t.page} ({images.length}/{MAX_IMAGES_LIMIT}):
-            </span>
-            <div
-              className="flex gap-1.5 overflow-x-auto py-1"
-              onDragEnd={() => setDraggedImageIndex(null)}
-            >
-              {images.map((img, idx) => (
-                <div
-                  key={img.id}
-                  draggable
-                  onDragStart={() => setDraggedImageIndex(idx)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => {
-                    if (draggedImageIndex !== null) handleReorderImages(draggedImageIndex, idx);
-                    setDraggedImageIndex(null);
-                  }}
-                  className={`relative flex items-center gap-1.5 shrink-0 rounded-lg px-2 py-1 transition-all ${
-                    activeImageIndex === idx
-                      ? "bg-orange-600 text-white shadow-md"
-                      : selectedImageIds.includes(img.id)
-                        ? "bg-orange-500/15 border border-orange-500/60 text-foreground shadow-xs"
-                        : "bg-muted hover:bg-muted/80 text-foreground"
-                  } ${draggedImageIndex === idx ? "opacity-50" : ""}`}
-                  title="اسحب الصفحة لتغيير ترتيبها"
-                >
-                  <GripVertical className="w-3 h-3 cursor-grab opacity-60" />
-                  <input
-                    type="checkbox"
-                    checked={selectedImageIds.includes(img.id)}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      toggleSelectImage(img.id);
+        <div className="mb-6 space-y-3">
+          <div className="p-3 bg-card border border-border rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto">
+              <Images className="w-4 h-4 text-orange-500 shrink-0" />
+              <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">
+                {t.page} ({images.length}/{MAX_IMAGES_LIMIT}):
+              </span>
+              <div
+                className="flex gap-1.5 overflow-x-auto py-1"
+                onDragEnd={() => setDraggedImageIndex(null)}
+              >
+                {images.map((img, idx) => (
+                  <div
+                    key={img.id}
+                    draggable
+                    onDragStart={() => setDraggedImageIndex(idx)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      if (draggedImageIndex !== null) handleReorderImages(draggedImageIndex, idx);
+                      setDraggedImageIndex(null);
                     }}
-                    className="w-3.5 h-3.5 rounded border-orange-500 accent-orange-600 cursor-pointer shrink-0"
-                    title={
-                      lang === "ar" ? "تحديد الصفحة لإعادة التحليل" : "Select page for re-analysis"
-                    }
-                  />
-                  <button
-                    onClick={() => setActiveImageIndex(idx)}
-                    className="flex items-center gap-1.5 text-xs font-bold"
+                    className={`relative flex items-center gap-1.5 shrink-0 rounded-lg px-2 py-1 transition-all ${
+                      activeImageIndex === idx
+                        ? "bg-orange-600 text-white shadow-md"
+                        : selectedImageIds.includes(img.id)
+                          ? "bg-orange-500/15 border border-orange-500/60 text-foreground shadow-xs"
+                          : "bg-muted hover:bg-muted/80 text-foreground"
+                    } ${draggedImageIndex === idx ? "opacity-50" : ""}`}
+                    title="اسحب الصفحة لتغيير ترتيبها"
                   >
-                    <span>#{getDisplayPageNumber(img, idx)}</span>
-                    {resultsMap[img.id] && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                    <GripVertical className="w-3 h-3 cursor-grab opacity-60" />
+                    <input
+                      type="checkbox"
+                      checked={selectedImageIds.includes(img.id)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        toggleSelectImage(img.id);
+                      }}
+                      className="w-3.5 h-3.5 rounded border-orange-500 accent-orange-600 cursor-pointer shrink-0"
+                      title={
+                        lang === "ar"
+                          ? "تحديد الصفحة لإعادة التحليل"
+                          : "Select page for re-analysis"
+                      }
+                    />
+                    <button
+                      onClick={() => setActiveImageIndex(idx)}
+                      className="flex items-center gap-1.5 text-xs font-bold"
+                    >
+                      <span>#{getDisplayPageNumber(img, idx)}</span>
+                      {resultsMap[img.id] && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                      )}
+                    </button>
+                    {editingImageId === img.id ? (
+                      <>
+                        <Input
+                          value={editingImageName}
+                          onChange={(e) => setEditingImageName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveImageName();
+                          }}
+                          className="h-6 w-28 bg-background text-foreground text-[10px] px-1"
+                          autoFocus
+                        />
+                        <button onClick={saveImageName} title="حفظ اسم الصفحة">
+                          <Check className="w-3 h-3" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="max-w-24 truncate text-[10px] opacity-80">{img.name}</span>
+                        <button onClick={() => startRenameImage(img)} title="إعادة تسمية الصفحة">
+                          <Pencil className="w-3 h-3 opacity-70 hover:opacity-100" />
+                        </button>
+                      </>
                     )}
-                  </button>
-                  {editingImageId === img.id ? (
-                    <>
-                      <Input
-                        value={editingImageName}
-                        onChange={(e) => setEditingImageName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") saveImageName();
-                        }}
-                        className="h-6 w-28 bg-background text-foreground text-[10px] px-1"
-                        autoFocus
-                      />
-                      <button onClick={saveImageName} title="حفظ اسم الصفحة">
-                        <Check className="w-3 h-3" />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="max-w-24 truncate text-[10px] opacity-80">{img.name}</span>
-                      <button onClick={() => startRenameImage(img)} title="إعادة تسمية الصفحة">
-                        <Pencil className="w-3 h-3 opacity-70 hover:opacity-100" />
-                      </button>
-                    </>
-                  )}
-                  <button onClick={() => handleRemoveImage(idx)} title="حذف الصفحة">
-                    <Trash2 className="w-3 h-3 hover:text-red-400" />
-                  </button>
-                </div>
-              ))}
+                    <button onClick={() => handleRemoveImage(idx)} title="حذف الصفحة">
+                      <Trash2 className="w-3 h-3 hover:text-red-400" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={
+                  selectedImageIds.length === images.length && images.length > 0
+                    ? handleDeselectAllImages
+                    : handleSelectAllImages
+                }
+                title={
+                  selectedImageIds.length === images.length && images.length > 0
+                    ? t.deselectAllPages
+                    : t.selectAllPages
+                }
+                className="text-xs font-bold gap-1 rounded-xl h-8 border-border hover:border-orange-500/40 shadow-sm"
+              >
+                <CheckSquare className="w-3.5 h-3.5 text-orange-500" />
+                <span>
+                  {selectedImageIds.length === images.length && images.length > 0
+                    ? t.deselectAllPages
+                    : t.selectAllPages}
+                </span>
+                {selectedImageIds.length > 0 && (
+                  <span className="bg-orange-600 text-white text-[10px] font-bold rounded-full px-1.5 py-0.2">
+                    {selectedImageIds.length}
+                  </span>
+                )}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSortImagesNumerically}
+                title={t.sortPagesNumerically}
+                className="text-xs font-bold gap-1 rounded-xl h-8 border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 shadow-sm"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+                <span>{t.sortPagesNumerically}</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPageNumberModal(true)}
+                title={t.pageNumberingSettings}
+                className="text-xs font-bold gap-1 rounded-xl h-8 border-border hover:border-orange-500/40"
+              >
+                <Hash className="w-3.5 h-3.5 text-orange-500" />
+                <span>
+                  {useFilenamePageNumber ? `${t.page}: تلقائي` : `${t.page}: ${startPageNumber}+`}
+                </span>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearAllImages}
+                className="text-xs text-red-500 font-bold h-8 rounded-xl hover:bg-red-500/10"
+              >
+                {t.clearAll}
+              </Button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={
-                selectedImageIds.length === images.length && images.length > 0
-                  ? handleDeselectAllImages
-                  : handleSelectAllImages
-              }
-              title={
-                selectedImageIds.length === images.length && images.length > 0
-                  ? t.deselectAllPages
-                  : t.selectAllPages
-              }
-              className="text-xs font-bold gap-1 rounded-xl h-8 border-border hover:border-orange-500/40 shadow-sm"
-            >
-              <CheckSquare className="w-3.5 h-3.5 text-orange-500" />
-              <span>
-                {selectedImageIds.length === images.length && images.length > 0
-                  ? t.deselectAllPages
-                  : t.selectAllPages}
-              </span>
-              {selectedImageIds.length > 0 && (
-                <span className="bg-orange-600 text-white text-[10px] font-bold rounded-full px-1.5 py-0.2">
-                  {selectedImageIds.length}
-                </span>
-              )}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSortImagesNumerically}
-              title={t.sortPagesNumerically}
-              className="text-xs font-bold gap-1 rounded-xl h-8 border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 shadow-sm"
-            >
-              <ArrowUpDown className="w-3.5 h-3.5" />
-              <span>{t.sortPagesNumerically}</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowPageNumberModal(true)}
-              title={t.pageNumberingSettings}
-              className="text-xs font-bold gap-1 rounded-xl h-8 border-border hover:border-orange-500/40"
-            >
-              <Hash className="w-3.5 h-3.5 text-orange-500" />
-              <span>
-                {useFilenamePageNumber ? `${t.page}: تلقائي` : `${t.page}: ${startPageNumber}+`}
-              </span>
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearAllImages}
-              className="text-xs text-red-500 font-bold h-8 rounded-xl hover:bg-red-500/10"
-            >
-              {t.clearAll}
-            </Button>
-          </div>
+          {/* Ad Space directly under the pages bar as requested */}
+          <AdSlot id="ad-under-pages-toolbar" format="leaderboard" />
         </div>
       )}
 
       {/* Main View Switcher */}
       {view === "upload" ? (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-8 space-y-6">
-            <UploadZone
-              imagePreview={activeImage?.url || null}
-              fileName={activeImage?.name || null}
-              config={config}
-              isAnalyzing={isAnalyzing}
-              onImageSelected={handleImageSelected}
-              onMultipleImagesSelected={handleMultipleImagesSelected}
-              onClearImage={handleClearAllImages}
-              onConfigChange={(updated) => setConfig((prev) => ({ ...prev, ...updated }))}
-              onAnalyze={() => handleAnalyzeCurrent(false)}
-            />
-
-            <div className="flex flex-col items-center justify-center mt-2">
-              <Label
-                htmlFor="ref-upload"
-                className="cursor-pointer flex items-center gap-2 text-xs text-muted-foreground hover:text-orange-500 transition-colors bg-muted/30 px-4 py-2 rounded-xl border border-dashed border-border/60"
-              >
-                <Paperclip className="w-4 h-4" />
-                {referenceFileName ? (
-                  <span className="font-bold text-orange-500">
-                    {t.referenceUploaded} {referenceFileName}
-                  </span>
-                ) : (
-                  <span>{t.uploadReference}</span>
-                )}
-              </Label>
-              <input
-                id="ref-upload"
-                type="file"
-                accept=".txt"
-                className="hidden"
-                onChange={handleReferenceUpload}
-                disabled={isAnalyzing}
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <div className="lg:col-span-8 space-y-6">
+              <UploadZone
+                imagePreview={activeImage?.url || null}
+                fileName={activeImage?.name || null}
+                config={config}
+                isAnalyzing={isAnalyzing}
+                onImageSelected={handleImageSelected}
+                onMultipleImagesSelected={handleMultipleImagesSelected}
+                onClearImage={handleClearAllImages}
+                onConfigChange={(updated) => setConfig((prev) => ({ ...prev, ...updated }))}
+                onAnalyze={() => handleAnalyzeCurrent(false)}
               />
+
+              <div className="flex flex-col items-center justify-center mt-2">
+                <Label
+                  htmlFor="ref-upload"
+                  className="cursor-pointer flex items-center gap-2 text-xs text-muted-foreground hover:text-orange-500 transition-colors bg-muted/30 px-4 py-2 rounded-xl border border-dashed border-border/60"
+                >
+                  <Paperclip className="w-4 h-4" />
+                  {referenceFileName ? (
+                    <span className="font-bold text-orange-500">
+                      {t.referenceUploaded} {referenceFileName}
+                    </span>
+                  ) : (
+                    <span>{t.uploadReference}</span>
+                  )}
+                </Label>
+                <input
+                  id="ref-upload"
+                  type="file"
+                  accept=".txt"
+                  className="hidden"
+                  onChange={handleReferenceUpload}
+                  disabled={isAnalyzing}
+                />
+              </div>
+
+              {images.length > 0 && (
+                <div className="flex flex-col items-center justify-center gap-4 pt-2 min-h-[60px]">
+                  {isAnalyzing ? (
+                    <div className="flex flex-col items-center gap-3 w-full max-w-md bg-card p-4 rounded-2xl border border-orange-500/30 shadow-lg animate-in fade-in zoom-in duration-300">
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
+                        <span className="text-sm font-bold text-foreground">
+                          {currentProcessingMsg}
+                        </span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                        <div className="bg-orange-500 h-full animate-[pulse_2s_ease-in-out_infinite] w-full origin-left scale-x-100"></div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground text-center">
+                        {t.analysisWaitNote}
+                      </p>
+                      <AdSlot id="ad-processing-loader" format="compact" className="w-full mt-1" />
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap justify-center gap-3 w-full animate-in fade-in zoom-in">
+                      <Button
+                        onClick={() => handleAnalyzeCurrent(false)}
+                        className="bg-orange-600 hover:bg-orange-700 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-md"
+                      >
+                        <Sparkles className="w-4 h-4" /> {t.analyzeCurrent}
+                      </Button>
+                      <Button
+                        onClick={() => handleAnalyzeCurrent(true)}
+                        variant="outline"
+                        className="border-orange-500/40 text-orange-600 dark:text-orange-400 font-bold h-11 px-6 rounded-xl gap-2"
+                      >
+                        <FileText className="w-4 h-4" /> {t.extractOcrOnly}
+                      </Button>
+                      <Button
+                        onClick={() => handleAnalyzeAll(false)}
+                        className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-md"
+                      >
+                        <Play className="w-4 h-4 text-orange-400" /> {t.analyzeAll} ({images.length}
+                        )
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {images.length > 0 && (
-              <div className="flex flex-col items-center justify-center gap-4 pt-2 min-h-[60px]">
-                {isAnalyzing ? (
-                  <div className="flex flex-col items-center gap-3 w-full max-w-md bg-card p-4 rounded-2xl border border-orange-500/30 shadow-lg animate-in fade-in zoom-in duration-300">
-                    <div className="flex items-center gap-3">
-                      <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
-                      <span className="text-sm font-bold text-foreground">
-                        {currentProcessingMsg}
-                      </span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                      <div className="bg-orange-500 h-full animate-[pulse_2s_ease-in-out_infinite] w-full origin-left scale-x-100"></div>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground text-center">
-                      {t.analysisWaitNote}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap justify-center gap-3 w-full animate-in fade-in zoom-in">
-                    <Button
-                      onClick={() => handleAnalyzeCurrent(false)}
-                      className="bg-orange-600 hover:bg-orange-700 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-md"
-                    >
-                      <Sparkles className="w-4 h-4" /> {t.analyzeCurrent}
-                    </Button>
-                    <Button
-                      onClick={() => handleAnalyzeCurrent(true)}
-                      variant="outline"
-                      className="border-orange-500/40 text-orange-600 dark:text-orange-400 font-bold h-11 px-6 rounded-xl gap-2"
-                    >
-                      <FileText className="w-4 h-4" /> {t.extractOcrOnly}
-                    </Button>
-                    <Button
-                      onClick={() => handleAnalyzeAll(false)}
-                      className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-md"
-                    >
-                      <Play className="w-4 h-4 text-orange-400" /> {t.analyzeAll} ({images.length})
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="lg:col-span-4">
-            <SidebarInfoCards />
+            <div className="lg:col-span-4">
+              <SidebarInfoCards />
+            </div>
           </div>
         </div>
       ) : (
@@ -2016,6 +2194,22 @@ ST: همس`}
             >
               <ArrowLeft className="w-4 h-4" /> {t.backToUpload}
             </Button>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowGlobalFindReplaceModal(true)}
+                className="h-8 text-xs font-bold gap-1.5 rounded-xl border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 shadow-xs"
+                title={`${t.globalFindReplace} (Ctrl+H / Ctrl+F)`}
+              >
+                <Replace className="w-3.5 h-3.5" />
+                <span>{t.globalFindReplace}</span>
+                <kbd className="hidden md:inline-block text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border/80 font-mono text-muted-foreground">
+                  Ctrl+H
+                </kbd>
+              </Button>
+            </div>
 
             <div className="flex flex-wrap items-center gap-2 bg-muted/40 p-1.5 rounded-xl border border-border/60">
               <div className="flex items-center gap-1.5 px-2">
@@ -2337,7 +2531,7 @@ ST: همس`}
                   checked={config.extractSFX}
                   onChange={(e) => {
                     const checked = e.target.checked;
-                    handleConfigChange({ extractSFX: checked });
+                    setConfig((prev) => ({ ...prev, extractSFX: checked }));
                   }}
                   className="w-3.5 h-3.5 rounded border-orange-500 accent-orange-600 cursor-pointer shrink-0"
                 />
@@ -2388,24 +2582,70 @@ ST: همس`}
                       className="w-full h-auto object-contain rounded-lg shadow-md"
                     />
                     {showOverlay &&
-                      currentItems.map((item, idx) => (
-                        <div
-                          key={item.id}
-                          onMouseEnter={() => setHoveredItemId(item.id)}
-                          onMouseLeave={() => setHoveredItemId(null)}
-                          style={{ top: `${item.topPercent ?? (idx + 1) * 15}%` }}
-                          className={`absolute left-1/2 -translate-x-1/2 w-[85%] bg-black/80 backdrop-blur-md text-white border text-center p-2 rounded-xl text-xs font-bold transition-all shadow-xl cursor-pointer ${
-                            hoveredItemId === item.id
-                              ? "border-orange-500 scale-105 bg-orange-950/90 text-orange-200 ring-2 ring-orange-500 z-10"
-                              : "border-orange-500/40 hover:border-orange-400 z-0"
-                          }`}
-                        >
-                          <span className="text-[10px] text-orange-400 block mb-0.5">
-                            #{idx + 1} ({item.category})
-                          </span>
-                          {item.translatedText}
-                        </div>
-                      ))}
+                      currentItems.map((item, idx) => {
+                        const hasPreciseCoords =
+                          typeof item.leftPercent === "number" &&
+                          typeof item.widthPercent === "number";
+
+                        const bubbleStyle: React.CSSProperties = hasPreciseCoords
+                          ? {
+                              top: `${item.topPercent ?? (idx + 1) * 15}%`,
+                              left: `${item.leftPercent}%`,
+                              width: `${Math.max(14, Math.min(85, item.widthPercent || 25))}%`,
+                              ...(item.heightPercent
+                                ? { minHeight: `${Math.max(4, item.heightPercent)}%` }
+                                : {}),
+                            }
+                          : {
+                              top: `${item.topPercent ?? (idx + 1) * 15}%`,
+                              left: "50%",
+                              transform: "translateX(-50%)",
+                              width: "85%",
+                            };
+
+                        return (
+                          <div
+                            key={item.id}
+                            onMouseEnter={() => setHoveredItemId(item.id)}
+                            onMouseLeave={() => setHoveredItemId(null)}
+                            onClick={() => handleQuickCopyTranslation(item.id, item.translatedText)}
+                            style={bubbleStyle}
+                            title={t.clickBubbleToCopy}
+                            className={`absolute bg-black/85 backdrop-blur-md text-white border text-center p-2 rounded-xl text-xs font-bold transition-all shadow-xl cursor-pointer select-none ${
+                              hoveredItemId === item.id
+                                ? "border-orange-500 scale-105 bg-orange-950/90 text-orange-200 ring-2 ring-orange-500 z-20"
+                                : "border-orange-500/40 hover:border-orange-400 z-10"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between text-[10px] text-orange-400 mb-0.5 px-1 gap-1">
+                              <span className="truncate">
+                                #{idx + 1} ({item.category})
+                              </span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {item.confidence !== undefined && (
+                                  <span className="text-[9px] font-mono bg-white/10 text-orange-200 px-1 rounded">
+                                    {Math.round(item.confidence * 100)}%
+                                  </span>
+                                )}
+                                <span className="flex items-center gap-1 text-[9px] font-semibold bg-orange-500/20 text-orange-200 px-1.5 py-0.5 rounded">
+                                  {copiedBubbleId === item.id ? (
+                                    <>
+                                      <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                      <span className="text-emerald-400 font-bold">{t.copied}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-2.5 h-2.5" />
+                                      <span>{t.quickCopyTranslation}</span>
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="leading-snug break-words">{item.translatedText}</div>
+                          </div>
+                        );
+                      })}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground m-auto">{t.noImage}</p>
@@ -2419,20 +2659,33 @@ ST: همس`}
                   <Sparkles className="w-4 h-4 text-orange-500" />
                   {t.extractedTexts} ({currentItems.length})
                 </h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCopyPageFormatted}
-                  className="h-8 text-xs font-bold gap-1.5 rounded-lg border-orange-500/30 text-orange-600 dark:text-orange-400 shadow-sm"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  {t.copyAllPage}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddNewBubble}
+                    className="h-8 text-xs font-bold gap-1.5 rounded-lg border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 shadow-sm cursor-pointer"
+                    title={t.addNewBubble}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{t.addNewBubble}</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyPageFormatted}
+                    className="h-8 text-xs font-bold gap-1.5 rounded-lg border-orange-500/30 text-orange-600 dark:text-orange-400 shadow-sm"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    {t.copyAllPage}
+                  </Button>
+                </div>
               </div>
 
               {currentItems.map((item, idx) => (
                 <Card
                   key={item.id}
+                  id={`bubble-card-${item.id}`}
                   onMouseEnter={() => setHoveredItemId(item.id)}
                   onMouseLeave={() => setHoveredItemId(null)}
                   className={`p-4 space-y-3 border-border rounded-xl shadow-sm transition-all duration-200 ${
@@ -2446,7 +2699,7 @@ ST: همس`}
                       <span className="bg-orange-500/10 text-orange-600 dark:text-orange-400 px-2.5 py-1 rounded-md font-bold">
                         {t.paragraph} #{idx + 1}
                       </span>
-                      <div className="flex items-center gap-0.5">
+                      <div className="flex items-center gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -2468,7 +2721,23 @@ ST: همس`}
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {item.confidence !== undefined && (
+                        <span
+                          className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                          title="Confidence"
+                        >
+                          {Math.round(item.confidence * 100)}% {lang === "ar" ? "دقة" : "conf"}
+                        </span>
+                      )}
+                      {typeof item.leftPercent === "number" && (
+                        <span
+                          className="hidden md:inline-flex items-center text-[10px] text-muted-foreground/80 font-mono px-1.5 py-0.5 rounded bg-muted/60"
+                          title="Position"
+                        >
+                          X:{Math.round(item.leftPercent)}% Y:{Math.round(item.topPercent ?? 0)}%
+                        </span>
+                      )}
                       {item.fromTM && (
                         <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                           <Zap className="w-3 h-3 text-emerald-500" />
@@ -2476,22 +2745,57 @@ ST: همس`}
                         </span>
                       )}
 
+                      {/* Split Bubble Button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenSplitModal(item, idx)}
+                        className="h-7 px-2.5 text-[11px] gap-1.5 font-bold border-orange-500/40 bg-orange-500/10 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 rounded-lg shadow-xs"
+                        title={t.splitBubble}
+                      >
+                        <Split className="w-3.5 h-3.5" />
+                        <span>{t.splitBubble}</span>
+                      </Button>
+
                       <Button
                         variant="outline"
                         size="sm"
                         disabled={retranslatingBubbleId === item.id || isAnalyzing}
                         onClick={() => handleReTranslateBubble(item)}
-                        className="h-7 px-2.5 text-[11px] gap-1 font-bold border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 rounded-lg"
+                        className="h-7 px-2 text-[11px] gap-1 font-bold border-border/80 text-muted-foreground hover:text-foreground rounded-lg"
                         title={t.reTranslateBubble}
                       >
                         <RefreshCw
                           className={`w-3 h-3 ${retranslatingBubbleId === item.id ? "animate-spin text-orange-500" : ""}`}
                         />
-                        <span>
+                        <span className="hidden sm:inline">
                           {retranslatingBubbleId === item.id
                             ? t.reTranslating
                             : t.reTranslateBubble}
                         </span>
+                      </Button>
+
+                      {/* Quick Copy for Photoshop / Typesetting */}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleQuickCopyTranslation(item.id, item.translatedText)}
+                        className="h-7 px-2 text-[11px] gap-1 font-bold bg-orange-500/15 hover:bg-orange-500/25 text-orange-600 dark:text-orange-400 border border-orange-500/30 rounded-lg shadow-xs"
+                        title={t.quickCopyPhotoshop}
+                      >
+                        {copiedBubbleId === item.id ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-500" />
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                              {t.copied}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>{t.quickCopyTranslation}</span>
+                          </>
+                        )}
                       </Button>
 
                       <Button
@@ -2501,16 +2805,40 @@ ST: همس`}
                           handleCopyText(formatTextWithRules(item.translatedText, item.category))
                         }
                         className="h-7 px-2 text-[11px] gap-1 font-bold text-muted-foreground hover:text-orange-500"
+                        title={t.copyBubbleWithTags}
                       >
                         <Copy className="w-3.5 h-3.5" />
-                        {t.copyBlock}
+                        <span className="hidden sm:inline">{t.copyBubbleWithTags}</span>
+                      </Button>
+
+                      {/* Insert Below Button */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleInsertBubbleBelow(idx)}
+                        className="h-7 px-2 text-[11px] gap-1 font-medium text-muted-foreground hover:text-foreground rounded-lg"
+                        title={t.insertBubbleBelow}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span className="hidden xl:inline">{t.insertBubbleBelow}</span>
+                      </Button>
+
+                      {/* Delete Bubble Button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteBubble(item.id)}
+                        className="h-7 w-7 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg"
+                        title={t.deleteBubble}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </Button>
 
                       <Select
                         value={item.category}
                         onValueChange={(val) => updateItem(item.id, "category", val)}
                       >
-                        <SelectTrigger className="w-[150px] h-8 text-xs font-bold rounded-lg bg-background">
+                        <SelectTrigger className="w-[140px] h-7 text-xs font-bold rounded-lg bg-background">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl">
@@ -2540,10 +2868,57 @@ ST: همس`}
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {t.translatedText}
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-orange-600 dark:text-orange-400 flex items-center gap-1.5">
+                        <Sparkles className="w-3 h-3 text-orange-500" />
+                        {t.translatedText}
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const textarea = document.getElementById(
+                              `translated-textarea-${item.id}`,
+                            ) as HTMLTextAreaElement | null;
+                            let sel = "";
+                            if (textarea && textarea.selectionStart !== textarea.selectionEnd) {
+                              sel = textarea.value.substring(
+                                textarea.selectionStart,
+                                textarea.selectionEnd,
+                              );
+                            }
+                            handleOpenSplitModal(item, idx, sel);
+                          }}
+                          className="text-[11px] font-bold flex items-center gap-1 text-orange-600 dark:text-orange-400 hover:text-orange-500 transition-colors cursor-pointer py-0.5 px-1.5 rounded hover:bg-orange-500/10"
+                          title={t.splitBubble}
+                        >
+                          <Split className="w-3 h-3" />
+                          <span>{t.splitBubble}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleQuickCopyTranslation(item.id, item.translatedText)}
+                          className="text-[11px] font-bold flex items-center gap-1 text-orange-600 dark:text-orange-400 hover:text-orange-500 transition-colors cursor-pointer py-0.5 px-1.5 rounded hover:bg-orange-500/10"
+                          title={t.quickCopyPhotoshop}
+                        >
+                          {copiedBubbleId === item.id ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-500" />
+                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                {t.copied}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              <span>{t.quickCopyPhotoshop}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
                     <Textarea
+                      id={`translated-textarea-${item.id}`}
                       value={item.translatedText}
                       onChange={(e) => updateItem(item.id, "translatedText", e.target.value)}
                       className="min-h-[50px] text-sm font-medium bg-card rounded-lg focus-visible:ring-1 focus-visible:ring-orange-500"
@@ -2551,6 +2926,11 @@ ST: همس`}
                   </div>
                 </Card>
               ))}
+
+              {/* Optional slim ad at end of bubbles list */}
+              <div className="pt-2 pb-1">
+                <AdSlot id="ad-editor-bubbles-bottom" format="compact" />
+              </div>
             </div>
           </div>
         </div>
@@ -2566,6 +2946,34 @@ ST: همس`}
 
       {/* Translation Memory Modal */}
       <TranslationMemoryModal open={showTMModal} onOpenChange={setShowTMModal} />
+
+      {/* Global Find & Replace Modal */}
+      <GlobalFindReplaceModal
+        open={showGlobalFindReplaceModal}
+        onOpenChange={setShowGlobalFindReplaceModal}
+        images={images}
+        resultsMap={resultsMap}
+        activeImageIndex={activeImageIndex}
+        onSelectImageIndex={setActiveImageIndex}
+        onUpdateResultsMap={(newMap) => setResultsMap(newMap)}
+        onHighlightBubble={handleHighlightBubble}
+      />
+
+      {/* Split Bubble Modal */}
+      <SplitBubbleModal
+        open={!!splitModalBubble}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSplitModalBubble(null);
+            setSplitInitialSelection("");
+          }
+        }}
+        bubble={splitModalBubble?.bubble || null}
+        bubbleIndex={splitModalBubble?.index ?? 0}
+        tags={tags}
+        initialSelectedText={splitInitialSelection}
+        onConfirmSplit={handleConfirmSplitBubble}
+      />
     </div>
   );
 }

@@ -116,4 +116,27 @@ Hope this translation is helpful!`;
     expect(typeof sanitized[0]!.topPercent).toBe("number");
     expect(sanitized[0]!.topPercent).toBeGreaterThanOrEqual(5);
   });
+
+  it("parses and sanitizes coordinates, dimensions, and confidence correctly", () => {
+    const raw = JSON.stringify([
+      {
+        id: "bubble_1",
+        originalText: "Hey!",
+        translatedText: "مهلاً!",
+        category: "dialogue",
+        topPercent: 35,
+        leftPercent: 42,
+        widthPercent: 18,
+        heightPercent: 8,
+        confidence: 0.91,
+      },
+    ]);
+
+    const result = parseJsonFromResponse(raw);
+    expect(result).not.toBeNull();
+    expect(result![0]!.leftPercent).toBe(42);
+    expect(result![0]!.widthPercent).toBe(18);
+    expect(result![0]!.heightPercent).toBe(8);
+    expect(result![0]!.confidence).toBe(0.91);
+  });
 });

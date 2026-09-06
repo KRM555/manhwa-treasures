@@ -43,6 +43,10 @@ export interface ExtractedItem {
   translatedText: string;
   category: string;
   topPercent: number;
+  leftPercent?: number;
+  widthPercent?: number;
+  heightPercent?: number;
+  confidence?: number;
   fromTM?: boolean;
 }
 

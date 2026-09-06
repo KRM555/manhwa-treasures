@@ -2,6 +2,7 @@ import React from "react";
 import { HelpCircle, ExternalLink, Key, Upload, FileText, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n } from "@/lib/language";
+import { AdSlot } from "@/components/AdSlot";
 
 export const SidebarInfoCards: React.FC = () => {
   const { t } = useI18n();
@@ -80,6 +81,9 @@ export const SidebarInfoCards: React.FC = () => {
           </a>
         </CardContent>
       </Card>
+
+      {/* Ad Space in Sidebar */}
+      <AdSlot id="ad-home-sidebar" format="rectangle" />
     </div>
   );
 };
