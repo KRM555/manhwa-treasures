@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { UploadZone } from '@/components/UploadZone';
 import { SidebarInfoCards } from '@/components/SidebarInfoCards';
 import { TranslationConfig } from '@/types/manga';
-import { ArrowLeft, Download, Sparkles, RefreshCw, Sun, Moon, Languages, Images, Trash2, ExternalLink, FileText, Plus, Settings2, Play, FileDown, ChevronDown, Copy, ArrowUp, ArrowDown, Search, Replace, RotateCcw, FolderPlus, BookOpen, Eye, EyeOff, CircleHelp as HelpCircle, Info, Paperclip, Loader as Loader2, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, KeyRound, Cpu } from 'lucide-react';
+import { ArrowLeft, Download, Sparkles, RefreshCw, Sun, Moon, Languages, Images, Trash2, ExternalLink, FileText, Plus, Settings2, Play, FileDown, ChevronDown, Copy, ArrowUp, ArrowDown, Search, Replace, RotateCcw, FolderPlus, BookOpen, Eye, EyeOff, CircleHelp as HelpCircle, Info, Paperclip, Loader as Loader2, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, KeyRound, Cpu, GripVertical, Pencil, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -87,6 +87,9 @@ export default function Index() {
     return saved ? JSON.parse(saved) : [];
   });
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
+  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
+  const [editingImageId, setEditingImageId] = useState<string | null>(null);
+  const [editingImageName, setEditingImageName] = useState<string>('');
   const [view, setView] = useState<'upload' | 'results'>('upload');
   
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
@@ -247,6 +250,38 @@ export default function Index() {
     if (activeImageIndex >= updated.length) {
       setActiveImageIndex(Math.max(0, updated.length - 1));
     }
+  };
+
+  const handleReorderImages = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= images.length || toIndex >= images.length) return;
+    const reordered = [...images];
+    const [moved] = reordered.splice(fromIndex, 1);
+    if (!moved) return;
+    reordered.splice(toIndex, 0, moved);
+    setImages(reordered);
+    setActiveImageIndex((current) => {
+      if (current === fromIndex) return toIndex;
+      if (fromIndex < current && current <= toIndex) return current - 1;
+      if (toIndex <= current && current < fromIndex) return current + 1;
+      return current;
+    });
+  };
+
+  const startRenameImage = (image: ImageItem) => {
+    setEditingImageId(image.id);
+    setEditingImageName(image.name);
+  };
+
+  const saveImageName = () => {
+    if (!editingImageId) return;
+    const nextName = editingImageName.trim();
+    if (!nextName) {
+      toast.error('اسم الصفحة لا يمكن أن يكون فارغًا');
+      return;
+    }
+    setImages((prev) => prev.map((image) => image.id === editingImageId ? { ...image, name: nextName } : image));
+    setEditingImageId(null);
+    setEditingImageName('');
   };
 
   const handleClearAllImages = () => {
@@ -1003,19 +1038,46 @@ The category field must be one of: (${tagValues}).`;
             <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">
               {t.page} ({images.length}/15):
             </span>
-            <div className="flex gap-1.5 overflow-x-auto py-1">
+            <div className="flex gap-1.5 overflow-x-auto py-1" onDragEnd={() => setDraggedImageIndex(null)}>
               {images.map((img, idx) => (
-                <button
+                <div
                   key={img.id}
-                  onClick={() => setActiveImageIndex(idx)}
-                  className={`relative px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                  draggable
+                  onDragStart={() => setDraggedImageIndex(idx)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => {
+                    if (draggedImageIndex !== null) handleReorderImages(draggedImageIndex, idx);
+                    setDraggedImageIndex(null);
+                  }}
+                  className={`relative flex items-center gap-1.5 shrink-0 rounded-lg px-2 py-1 transition-all ${
                     activeImageIndex === idx ? 'bg-orange-600 text-white shadow-md' : 'bg-muted hover:bg-muted/80 text-foreground'
-                  }`}
+                  } ${draggedImageIndex === idx ? 'opacity-50' : ''}`}
+                  title="اسحب الصفحة لتغيير ترتيبها"
                 >
-                  #{idx + 1}
-                  {resultsMap[img.id] && <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>}
-                  <Trash2 className="w-3 h-3 hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleRemoveImage(idx); }} />
-                </button>
+                  <GripVertical className="w-3 h-3 cursor-grab opacity-60" />
+                  <button onClick={() => setActiveImageIndex(idx)} className="flex items-center gap-1.5 text-xs font-bold">
+                    <span>#{idx + 1}</span>
+                    {resultsMap[img.id] && <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>}
+                  </button>
+                  {editingImageId === img.id ? (
+                    <>
+                      <Input
+                        value={editingImageName}
+                        onChange={(e) => setEditingImageName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') saveImageName(); }}
+                        className="h-6 w-28 bg-background text-foreground text-[10px] px-1"
+                        autoFocus
+                      />
+                      <button onClick={saveImageName} title="حفظ اسم الصفحة"><Check className="w-3 h-3" /></button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="max-w-24 truncate text-[10px] opacity-80">{img.name}</span>
+                      <button onClick={() => startRenameImage(img)} title="إعادة تسمية الصفحة"><Pencil className="w-3 h-3 opacity-70 hover:opacity-100" /></button>
+                    </>
+                  )}
+                  <button onClick={() => handleRemoveImage(idx)} title="حذف الصفحة"><Trash2 className="w-3 h-3 hover:text-red-400" /></button>
+                </div>
               ))}
             </div>
           </div>

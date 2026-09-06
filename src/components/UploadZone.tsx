@@ -33,6 +33,12 @@ export function UploadZone({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useI18n();
 
+  const sortImageNames = (names: string[]) => [...names].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+  );
+
+  const hasPageNumber = (name: string) => /(?:^|[^0-9])(?:page|pg|p|chapter|ch)?[_ -]?[0-9]+(?:[^0-9]|$)/i.test(name);
+
   const processFiles = async (files: FileList | File[]) => {
     const fileList = Array.from(files);
     const zipFile = fileList.find((f) => f.name.endsWith('.zip') || f.type.includes('zip'));
@@ -53,7 +59,15 @@ export function UploadZone({
           return;
         }
 
-        const selectedEntries = entries.slice(0, 15);
+        const sortedEntries = sortImageNames(entries);
+        if (entries.some((entry, index) => entry !== sortedEntries[index])) {
+          toast.warning('تم ترتيب صور ZIP تلقائيًا حسب أسماء الملفات. راجع الترتيب قبل التحليل.');
+        }
+        if (sortedEntries.some((entry) => !hasPageNumber(entry))) {
+          toast.warning('بعض أسماء الملفات لا تحتوي على رقم صفحة واضح؛ راجع الترتيب يدويًا.');
+        }
+
+        const selectedEntries = sortedEntries.slice(0, 15);
         for (const entryName of selectedEntries) {
           const fileData = await zipContent.files[entryName]!.async('base64');
           const ext = entryName.split('.').pop()?.toLowerCase() || 'jpeg';
@@ -76,8 +90,15 @@ export function UploadZone({
       return;
     }
 
-    const imageFiles = fileList.filter((f) => f.type.startsWith('image/')).slice(0, 15);
+    const imageFiles = fileList
+      .filter((f) => f.type.startsWith('image/'))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
+      .slice(0, 15);
     if (imageFiles.length === 0) return;
+
+    if (imageFiles.some((file) => !hasPageNumber(file.name))) {
+      toast.warning('بعض أسماء الملفات لا تحتوي على رقم صفحة واضح؛ راجع الترتيب يدويًا.');
+    }
 
     if (imageFiles.length === 1) {
       const file = imageFiles[0]!;
