@@ -1,7 +1,10 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from "docx";
 import { MangaPageItem } from "@/types/manga";
 
-export async function exportChapterToDocx(pages: MangaPageItem[], isRTL: boolean = true): Promise<void> {
+export async function exportChapterToDocx(
+  pages: MangaPageItem[],
+  isRTL: boolean = true,
+): Promise<void> {
   const docChildren: Paragraph[] = [];
 
   // Title Document Heading
@@ -11,7 +14,7 @@ export async function exportChapterToDocx(pages: MangaPageItem[], isRTL: boolean
       heading: HeadingLevel.TITLE,
       alignment: AlignmentType.CENTER,
       spacing: { after: 120, before: 100 },
-    })
+    }),
   );
 
   docChildren.push(
@@ -26,7 +29,7 @@ export async function exportChapterToDocx(pages: MangaPageItem[], isRTL: boolean
       ],
       alignment: AlignmentType.CENTER,
       spacing: { after: 300 },
-    })
+    }),
   );
 
   // Iterate each page and add headings + paragraphs
@@ -43,7 +46,7 @@ export async function exportChapterToDocx(pages: MangaPageItem[], isRTL: boolean
           }),
         ],
         spacing: { before: 200 },
-      })
+      }),
     );
 
     docChildren.push(
@@ -60,7 +63,7 @@ export async function exportChapterToDocx(pages: MangaPageItem[], isRTL: boolean
         alignment: isRTL ? AlignmentType.RIGHT : AlignmentType.LEFT,
         bidirectional: isRTL,
         spacing: { before: 80, after: 120 },
-      })
+      }),
     );
 
     if (!page.items || page.items.length === 0) {
@@ -76,7 +79,7 @@ export async function exportChapterToDocx(pages: MangaPageItem[], isRTL: boolean
           alignment: isRTL ? AlignmentType.RIGHT : AlignmentType.LEFT,
           bidirectional: isRTL,
           spacing: { after: 160 },
-        })
+        }),
       );
       return;
     }
@@ -95,7 +98,7 @@ export async function exportChapterToDocx(pages: MangaPageItem[], isRTL: boolean
           alignment: isRTL ? AlignmentType.RIGHT : AlignmentType.LEFT,
           bidirectional: isRTL,
           spacing: { after: 80 },
-        })
+        }),
       );
     });
 
@@ -104,7 +107,7 @@ export async function exportChapterToDocx(pages: MangaPageItem[], isRTL: boolean
       new Paragraph({
         text: "",
         spacing: { after: 160 },
-      })
+      }),
     );
   });
 

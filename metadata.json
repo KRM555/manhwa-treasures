@@ -1,0 +1,6 @@
+{
+  "name": "Manhwa Studio",
+  "description": "Extract, translate, and format webtoon and manga scripts with Gemini-powered OCR, tag formatting, glossaries, and DOCX export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

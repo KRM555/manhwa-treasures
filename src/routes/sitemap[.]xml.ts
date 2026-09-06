@@ -1,6 +1,6 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute('/sitemap.xml')({
+export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
       GET: () => {
@@ -11,14 +11,14 @@ export const Route = createFileRoute('/sitemap.xml')({
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
-</urlset>`
+</urlset>`;
 
         return new Response(sitemap, {
           headers: {
-            'Content-Type': 'application/xml',
+            "Content-Type": "application/xml",
           },
-        })
+        });
       },
     },
   },
-})
+});

@@ -1,7 +1,7 @@
-import React from 'react';
-import { HelpCircle, ExternalLink, Key, Upload, FileText, CheckCircle2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useI18n } from '@/lib/language';
+import React from "react";
+import { HelpCircle, ExternalLink, Key, Upload, FileText, CheckCircle2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useI18n } from "@/lib/language";
 
 export const SidebarInfoCards: React.FC = () => {
   const { t } = useI18n();
@@ -36,9 +36,7 @@ export const SidebarInfoCards: React.FC = () => {
                   <p className="font-bold text-foreground leading-tight flex items-center gap-1">
                     {step.title}
                   </p>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    {step.desc}
-                  </p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">{step.desc}</p>
                 </div>
               </div>
             );

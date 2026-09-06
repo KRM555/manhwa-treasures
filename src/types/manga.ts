@@ -13,7 +13,7 @@ export interface MangaPageItem {
   id: string;
   fileName: string;
   previewUrl: string;
-  status: 'pending' | 'processing' | 'completed' | 'error';
+  status: "pending" | "processing" | "completed" | "error";
   error?: string;
   items: DetectedBubble[];
 }

@@ -1,6 +1,6 @@
-import React from 'react';
-import { Sparkles, Languages, BookOpen, Wand2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import React from "react";
+import { Sparkles, Languages, BookOpen, Wand2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export const Header: React.FC = () => {
   return (
@@ -15,7 +15,10 @@ export const Header: React.FC = () => {
               <h1 className="font-extrabold text-xl sm:text-2xl tracking-tight bg-gradient-to-r from-gray-950 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
                 Manga Translator AI
               </h1>
-              <Badge variant="secondary" className="text-xs bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 font-semibold px-2 py-0.5 border border-orange-200 dark:border-orange-800">
+              <Badge
+                variant="secondary"
+                className="text-xs bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 font-semibold px-2 py-0.5 border border-orange-200 dark:border-orange-800"
+              >
                 v2.0 OCR
               </Badge>
             </div>

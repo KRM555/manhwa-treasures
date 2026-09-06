@@ -1,27 +1,77 @@
-import { AuthModal } from '@/components/AuthModal';
-import { supabase } from '@/lib/supabase';
-import React, { useState, useEffect } from 'react';
-import { UploadZone } from '@/components/UploadZone';
-import { SidebarInfoCards } from '@/components/SidebarInfoCards';
-import { TranslationConfig } from '@/types/manga';
-import { ArrowLeft, Download, Sparkles, RefreshCw, Sun, Moon, Languages, Images, Trash2, ExternalLink, FileText, Plus, Settings2, Play, FileDown, ChevronDown, Copy, ArrowUp, ArrowDown, Search, Replace, RotateCcw, FolderPlus, BookOpen, Eye, EyeOff, CircleHelp as HelpCircle, Info, Paperclip, Loader as Loader2, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, KeyRound, Cpu, GripVertical, Pencil, Check } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AuthModal } from "@/components/AuthModal";
+import { supabase } from "@/lib/supabase";
+import React, { useState, useEffect } from "react";
+import { UploadZone } from "@/components/UploadZone";
+import { SidebarInfoCards } from "@/components/SidebarInfoCards";
+import { TranslationConfig } from "@/types/manga";
+import {
+  ArrowLeft,
+  Download,
+  Sparkles,
+  RefreshCw,
+  Sun,
+  Moon,
+  Languages,
+  Images,
+  Trash2,
+  ExternalLink,
+  FileText,
+  Plus,
+  Settings2,
+  Play,
+  FileDown,
+  ChevronDown,
+  Copy,
+  ArrowUp,
+  ArrowDown,
+  Search,
+  Replace,
+  RotateCcw,
+  FolderPlus,
+  BookOpen,
+  Eye,
+  EyeOff,
+  CircleHelp as HelpCircle,
+  Info,
+  Paperclip,
+  Loader as Loader2,
+  CircleCheck as CheckCircle,
+  TriangleAlert as AlertTriangle,
+  KeyRound,
+  Cpu,
+  GripVertical,
+  Pencil,
+  Check,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { toast } from 'sonner';
-import { useI18n } from '@/lib/language';
-import { getTagLabel, BRAND_NAME } from '@/lib/i18n';
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
+import { useI18n } from "@/lib/language";
+import { getTagLabel, BRAND_NAME } from "@/lib/i18n";
 
 export interface ExtractedText {
   id: string;
@@ -51,141 +101,142 @@ export interface GlossaryItem {
 }
 
 const DEFAULT_TAGS: TagRule[] = [
-  { value: 'dialogue', label: 'حوار (Dialogue)', prefix: '"": ', suffix: '' },
-  { value: 'thought', label: 'أفكار (Thought)', prefix: '(): ', suffix: '' },
-  { value: 'scream', label: 'صراخ (Scream)', prefix: '<>: ', suffix: '' },
-  { value: 'system', label: 'نظام (System)', prefix: '[]: ', suffix: '' },
-  { value: 'phone', label: 'هاتف (Phone)', prefix: '**: ', suffix: '' },
-  { value: 'narrator', label: 'راوي (Narrator)', prefix: 'NA: ', suffix: '' },
-  { value: 'sfx', label: 'مؤثر صوتي (SFX)', prefix: 'sfx: ', suffix: '' },
-  { value: 'whisper', label: 'همس (Whisper)', prefix: 'ST: ', suffix: '' },
-  { value: 'other', label: 'أخرى (Other)', prefix: '', suffix: '' },
+  { value: "dialogue", label: "حوار (Dialogue)", prefix: '"": ', suffix: "" },
+  { value: "thought", label: "أفكار (Thought)", prefix: "(): ", suffix: "" },
+  { value: "scream", label: "صراخ (Scream)", prefix: "<>: ", suffix: "" },
+  { value: "system", label: "نظام (System)", prefix: "[]: ", suffix: "" },
+  { value: "phone", label: "هاتف (Phone)", prefix: "**: ", suffix: "" },
+  { value: "narrator", label: "راوي (Narrator)", prefix: "NA: ", suffix: "" },
+  { value: "sfx", label: "مؤثر صوتي (SFX)", prefix: "sfx: ", suffix: "" },
+  { value: "whisper", label: "همس (Whisper)", prefix: "ST: ", suffix: "" },
+  { value: "other", label: "أخرى (Other)", prefix: "", suffix: "" },
 ];
 
 export default function Index() {
   const { t, lang, toggleLang } = useI18n();
 
   const AVAILABLE_MODELS = [
-    { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
-    { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
-    { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
-    { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro' },
-    { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite' },
+    { id: "gemini-3.6-flash", label: "Gemini 3.6 Flash" },
+    { id: "gemini-3.7-flash", label: "Gemini 3.7 Flash" },
+    { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash" },
+    { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro" },
+    { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite" },
   ];
 
   // Map display model IDs to real Google Gemini API model IDs (with fallback chain)
   const MODEL_API_MAP: Record<string, string[]> = {
-    'gemini-3.6-flash': ['gemini-3.6-flash', 'gemini-2.5-flash'],
-    'gemini-3.7-flash': ['gemini-3.7-flash', 'gemini-3.6-flash'],
-    'gemini-3.8-flash': ['gemini-3.8-flash', 'gemini-3.7-flash'],
-    'gemini-3.1-pro-preview': ['gemini-3.1-pro-preview', 'gemini-3.8-flash'],
-    'gemini-3.5-flash-lite': ['gemini-3.5-flash-lite', 'gemini-3.6-flash'],
+    "gemini-3.6-flash": ["gemini-3.6-flash", "gemini-2.5-flash"],
+    "gemini-3.7-flash": ["gemini-3.7-flash", "gemini-3.6-flash"],
+    "gemini-3.8-flash": ["gemini-3.8-flash", "gemini-3.7-flash"],
+    "gemini-3.1-pro-preview": ["gemini-3.1-pro-preview", "gemini-3.8-flash"],
+    "gemini-3.5-flash-lite": ["gemini-3.5-flash-lite", "gemini-3.6-flash"],
   };
 
   const [images, setImages] = useState<ImageItem[]>(() => {
-    const saved = localStorage.getItem('manga_studio_images');
+    const saved = localStorage.getItem("manga_studio_images");
     return saved ? JSON.parse(saved) : [];
   });
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   const [editingImageId, setEditingImageId] = useState<string | null>(null);
-  const [editingImageName, setEditingImageName] = useState<string>('');
-  const [view, setView] = useState<'upload' | 'results'>('upload');
-  
+  const [editingImageName, setEditingImageName] = useState<string>("");
+  const [view, setView] = useState<"upload" | "results">("upload");
+
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [isTestingKey, setIsTestingKey] = useState<boolean>(false);
-  const [currentProcessingMsg, setCurrentProcessingMsg] = useState<string>('');
+  const [currentProcessingMsg, setCurrentProcessingMsg] = useState<string>("");
 
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
 
   const [apiKey, setApiKey] = useState<string>(() => {
-    return localStorage.getItem('gemini_api_key') || import.meta.env['VITE_GEMINI_API_KEY'] || '';
+    return localStorage.getItem("gemini_api_key") || import.meta.env["VITE_GEMINI_API_KEY"] || "";
   });
 
-  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.6-flash');
+  const [selectedModel, setSelectedModel] = useState<string>("gemini-3.6-flash");
   const [extendedThinking, setExtendedThinking] = useState<boolean>(false);
 
   const [config, setConfig] = useState<TranslationConfig>({
-    targetLanguage: 'ar',
+    targetLanguage: "ar",
     extractSFX: true,
     detectVerticalText: true,
   });
 
   const [resultsMap, setResultsMap] = useState<Record<string, ExtractedText[]>>(() => {
-    const saved = localStorage.getItem('manga_studio_results');
+    const saved = localStorage.getItem("manga_studio_results");
     return saved ? JSON.parse(saved) : {};
   });
 
   const [tags, setTags] = useState<TagRule[]>(() => {
-    const saved = localStorage.getItem('custom_manga_tags');
+    const saved = localStorage.getItem("custom_manga_tags");
     return saved ? JSON.parse(saved) : DEFAULT_TAGS;
   });
 
   const [glossary, setGlossary] = useState<GlossaryItem[]>(() => {
-    const saved = localStorage.getItem('manga_glossary');
+    const saved = localStorage.getItem("manga_glossary");
     return saved ? JSON.parse(saved) : [];
   });
-  const [newGlossaryOrig, setNewGlossaryOrig] = useState('');
-  const [newGlossaryTrans, setNewGlossaryTrans] = useState('');
+  const [newGlossaryOrig, setNewGlossaryOrig] = useState("");
+  const [newGlossaryTrans, setNewGlossaryTrans] = useState("");
 
   const [showOverlay, setShowOverlay] = useState<boolean>(false);
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
 
-  const [newTagLabel, setNewTagLabel] = useState('');
-  const [newTagPrefix, setNewTagPrefix] = useState('');
-  const [newTagSuffix, setNewTagSuffix] = useState('');
+  const [newTagLabel, setNewTagLabel] = useState("");
+  const [newTagPrefix, setNewTagPrefix] = useState("");
+  const [newTagSuffix, setNewTagSuffix] = useState("");
 
-  const [findText, setFindText] = useState('');
-  const [replaceText, setReplaceText] = useState('');
+  const [findText, setFindText] = useState("");
+  const [replaceText, setReplaceText] = useState("");
 
-  const [referenceText, setReferenceText] = useState<string>('');
-  const [referenceFileName, setReferenceFileName] = useState<string>('');
+  const [referenceText, setReferenceText] = useState<string>("");
+  const [referenceFileName, setReferenceFileName] = useState<string>("");
   const [showKeyHelpModal, setShowKeyHelpModal] = useState<boolean>(false);
-  const [reAnalysisNote, setReAnalysisNote] = useState<string>('');
+  const [reAnalysisNote, setReAnalysisNote] = useState<string>("");
 
   useEffect(() => {
-    localStorage.setItem('gemini_selected_model', selectedModel);
+    localStorage.setItem("gemini_selected_model", selectedModel);
   }, [selectedModel]);
 
   useEffect(() => {
-    localStorage.setItem('custom_manga_tags', JSON.stringify(tags));
+    localStorage.setItem("custom_manga_tags", JSON.stringify(tags));
   }, [tags]);
 
   useEffect(() => {
-    localStorage.setItem('manga_glossary', JSON.stringify(glossary));
+    localStorage.setItem("manga_glossary", JSON.stringify(glossary));
   }, [glossary]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('manga_studio_results', JSON.stringify(resultsMap));
+      localStorage.setItem("manga_studio_results", JSON.stringify(resultsMap));
     } catch (e) {
-      console.warn('Storage limit reached for results');
+      console.warn("Storage limit reached for results");
     }
   }, [resultsMap]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('manga_studio_images', JSON.stringify(images));
+      localStorage.setItem("manga_studio_images", JSON.stringify(images));
     } catch (e) {
-      console.warn('Storage limit reached for images');
+      console.warn("Storage limit reached for images");
     }
   }, [images]);
 
   useEffect(() => {
     if (isDarkMode) {
-      document.documentElement.classList.add('dark');
+      document.documentElement.classList.add("dark");
     } else {
-      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.remove("dark");
     }
   }, [isDarkMode]);
 
   const activeImage = images[activeImageIndex] || null;
-  const currentItems = activeImage ? (resultsMap[activeImage.id] || []) : [];
+  const currentItems = activeImage ? resultsMap[activeImage.id] || [] : [];
 
   // Strip spaces and surrounding quotes cleanly
-  const cleanApiKey = apiKey.replace(/[\s\r\n\t"']/g, '').trim();
+  const cleanApiKey = apiKey.replace(/[\s\r\n\t"']/g, "").trim();
 
- const getEffectiveModel = () => AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label || selectedModel;
+  const getEffectiveModel = () =>
+    AVAILABLE_MODELS.find((m) => m.id === selectedModel)?.label || selectedModel;
 
   const handleTestApiKey = async () => {
     if (!cleanApiKey) {
@@ -196,16 +247,16 @@ export default function Index() {
     setIsTestingKey(true);
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanApiKey}`
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanApiKey}`,
       );
       const data = await res.json();
-      
+
       if (res.ok && data?.models) {
         toast.success(t.keyValid(data.models.length));
       } else {
         const errMsg = data?.error?.message || `HTTP ${res.status}: ${res.statusText}`;
         toast.error(t.googleError(errMsg), { duration: 6000 });
-        if (cleanApiKey.startsWith('AQ.')) {
+        if (cleanApiKey.startsWith("AQ.")) {
           setShowKeyHelpModal(true);
         }
       }
@@ -240,7 +291,7 @@ export default function Index() {
     const imgToRemove = images[index];
     const updated = images.filter((_, i) => i !== index);
     setImages(updated);
-    
+
     if (imgToRemove) {
       const newMap = { ...resultsMap };
       delete newMap[imgToRemove.id];
@@ -253,7 +304,14 @@ export default function Index() {
   };
 
   const handleReorderImages = (fromIndex: number, toIndex: number) => {
-    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= images.length || toIndex >= images.length) return;
+    if (
+      fromIndex === toIndex ||
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= images.length ||
+      toIndex >= images.length
+    )
+      return;
     const reordered = [...images];
     const [moved] = reordered.splice(fromIndex, 1);
     if (!moved) return;
@@ -276,29 +334,31 @@ export default function Index() {
     if (!editingImageId) return;
     const nextName = editingImageName.trim();
     if (!nextName) {
-      toast.error('اسم الصفحة لا يمكن أن يكون فارغًا');
+      toast.error("اسم الصفحة لا يمكن أن يكون فارغًا");
       return;
     }
-    setImages((prev) => prev.map((image) => image.id === editingImageId ? { ...image, name: nextName } : image));
+    setImages((prev) =>
+      prev.map((image) => (image.id === editingImageId ? { ...image, name: nextName } : image)),
+    );
     setEditingImageId(null);
-    setEditingImageName('');
+    setEditingImageName("");
   };
 
   const handleClearAllImages = () => {
     setImages([]);
     setActiveImageIndex(0);
     setResultsMap({});
-    setReferenceText('');
-    setReferenceFileName('');
-    localStorage.removeItem('manga_studio_results');
-    localStorage.removeItem('manga_studio_images');
+    setReferenceText("");
+    setReferenceFileName("");
+    localStorage.removeItem("manga_studio_results");
+    localStorage.removeItem("manga_studio_images");
     toast.success(t.newProjectStarted);
   };
 
   const handleSaveApiKey = (key: string) => {
-    const cleaned = key.replace(/[\s\r\n\t"']/g, '').trim();
+    const cleaned = key.replace(/[\s\r\n\t"']/g, "").trim();
     setApiKey(cleaned);
-    localStorage.setItem('gemini_api_key', cleaned);
+    localStorage.setItem("gemini_api_key", cleaned);
   };
 
   const handleReferenceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -326,9 +386,9 @@ export default function Index() {
       suffix: newTagSuffix,
     };
     setTags([...tags, newTag]);
-    setNewTagLabel('');
-    setNewTagPrefix('');
-    setNewTagSuffix('');
+    setNewTagLabel("");
+    setNewTagPrefix("");
+    setNewTagSuffix("");
     toast.success(t.tagAdded);
   };
 
@@ -351,8 +411,8 @@ export default function Index() {
       translation: newGlossaryTrans.trim(),
     };
     setGlossary([...glossary, item]);
-    setNewGlossaryOrig('');
-    setNewGlossaryTrans('');
+    setNewGlossaryOrig("");
+    setNewGlossaryTrans("");
     toast.success(t.glossaryAdded);
   };
 
@@ -367,10 +427,10 @@ export default function Index() {
     return `${rule.prefix}${cleanText}${rule.suffix}`;
   };
 
-  const handleMoveItem = (index: number, direction: 'up' | 'down') => {
+  const handleMoveItem = (index: number, direction: "up" | "down") => {
     if (!activeImage) return;
     const items = [...currentItems];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= items.length) return;
 
     const temp = items[index]!;
@@ -389,12 +449,12 @@ export default function Index() {
     if (currentItems.length === 0) return;
     const fullText = currentItems
       .map((item) => formatTextWithRules(item.translatedText, item.category))
-      .join('\n\n');
+      .join("\n\n");
     navigator.clipboard.writeText(fullText);
     toast.success(t.copied);
   };
 
-  const handleFindAndReplace = (scope: 'current' | 'all') => {
+  const handleFindAndReplace = (scope: "current" | "all") => {
     if (!findText.trim()) return;
 
     let totalReplacements = 0;
@@ -412,7 +472,7 @@ export default function Index() {
       });
     };
 
-    if (scope === 'current' && activeImage) {
+    if (scope === "current" && activeImage) {
       if (newMap[activeImage.id]) {
         newMap[activeImage.id] = processList(newMap[activeImage.id]!);
       }
@@ -438,8 +498,8 @@ export default function Index() {
           // ignore
         }
       }
-      const firstBracket = raw.indexOf('[');
-      const lastBracket = raw.lastIndexOf(']');
+      const firstBracket = raw.indexOf("[");
+      const lastBracket = raw.lastIndexOf("]");
       if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
         try {
           return JSON.parse(raw.substring(firstBracket, lastBracket + 1));
@@ -451,29 +511,39 @@ export default function Index() {
     return null;
   };
 
-  const processGeminiRequest = async (targetImg: ImageItem, ocrOnly = false, reAnalysisHint?: string): Promise<{ data: ExtractedText[] | null; error?: string }> => {
+  const processGeminiRequest = async (
+    targetImg: ImageItem,
+    ocrOnly = false,
+    reAnalysisHint?: string,
+  ): Promise<{ data: ExtractedText[] | null; error?: string }> => {
     if (!cleanApiKey) {
       return { data: null, error: t.emptyApiKey };
     }
 
     const mimeTypeMatch = targetImg.url.match(/^data:(image\/[a-zA-Z+]+);base64,/);
-    const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/jpeg';
-    const base64Data = targetImg.url.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+    const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : "image/jpeg";
+    const base64Data = targetImg.url.replace(/^data:image\/[a-zA-Z+]+;base64,/, "");
 
-    const glossaryPrompt = glossary.length > 0
-      ? `Strictly use this Glossary for translated names/terms: ${glossary.map(g => `${g.original} => ${g.translation}`).join('; ')}.`
-      : '';
+    const glossaryPrompt =
+      glossary.length > 0
+        ? `Strictly use this Glossary for translated names/terms: ${glossary.map((g) => `${g.original} => ${g.translation}`).join("; ")}.`
+        : "";
 
     const refContextPrompt = referenceText
       ? `\nIMPORTANT CONTEXT: Use the following text from a previous chapter as a reference to maintain consistent tone, style, and character naming:\n"""\n${referenceText.substring(0, 5000)}\n"""\n`
-      : '';
+      : "";
 
     const reAnalysisPrompt = reAnalysisHint?.trim()
       ? `\nCRITICAL — RE-ANALYSIS INSTRUCTIONS FROM THE USER:\nThe user reports that some text regions were missed or incorrectly extracted in a previous analysis.\nPay special attention to the following user notes and make sure to explicitly scan and extract the requested areas:\n"""\n${reAnalysisHint.trim()}\n"""\nRe-examine the entire image carefully, focusing on the areas the user mentioned. Include ALL text blocks, especially any that were previously missed.\n`
-      : '';
+      : "";
 
-    const tagDefinitions = tags.map(t => `- value: "${t.value}" | label: "${t.label}" | prefix: "${t.prefix}" | suffix: "${t.suffix}"`).join('\n');
-    const tagValues = tags.map(t => t.value).join(', ');
+    const tagDefinitions = tags
+      .map(
+        (t) =>
+          `- value: "${t.value}" | label: "${t.label}" | prefix: "${t.prefix}" | suffix: "${t.suffix}"`,
+      )
+      .join("\n");
+    const tagValues = tags.map((t) => t.value).join(", ");
 
     const tagInstructions = `IMPORTANT — TAG CLASSIFICATION RULES:
 You must classify each extracted text block into one of the following currently active custom tags.
@@ -497,22 +567,22 @@ Extract all texts from the image in reading order (top to bottom).
 Estimate topPercent (0 to 100) relative vertical position on the page for each text bubble.
 ${tagInstructions}
 ${reAnalysisPrompt}
-Translate all extracted texts to ${config.targetLanguage === 'ar' ? 'Arabic (العربية)' : 'English'}.
+Translate all extracted texts to ${config.targetLanguage === "ar" ? "Arabic (العربية)" : "English"}.
 ${glossaryPrompt}
 ${refContextPrompt}
 Return ONLY a valid JSON array of objects with keys: id, originalText, translatedText, category, topPercent.
 The category field must be one of: (${tagValues}).`;
 
-    const apiModelIds = MODEL_API_MAP[selectedModel] || MODEL_API_MAP['gemini-3.6-flash']!;
+    const apiModelIds = MODEL_API_MAP[selectedModel] || MODEL_API_MAP["gemini-3.6-flash"]!;
     const RETRYABLE_STATUS = new Set([429, 500, 503]);
     const MAX_RETRIES = 2;
 
-    let lastErrorDetails = '';
+    let lastErrorDetails = "";
     let attemptedFallback = false;
 
     for (let modelIdx = 0; modelIdx < apiModelIds.length; modelIdx++) {
       const apiModel = apiModelIds[modelIdx]!;
-      const supportsThinkingLevel = apiModel.startsWith('gemini-3.');
+      const supportsThinkingLevel = apiModel.startsWith("gemini-3.");
 
       if (modelIdx > 0) {
         toast.info(t.fallbackModel(apiModel), { duration: 4000 });
@@ -528,26 +598,23 @@ The category field must be one of: (${tagValues}).`;
         try {
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${cleanApiKey}`;
           const response = await fetch(url, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
             body: JSON.stringify({
               contents: [
                 {
-                  parts: [
-                    { inlineData: { mimeType, data: base64Data } },
-                    { text: promptText },
-                  ],
+                  parts: [{ inlineData: { mimeType, data: base64Data } }, { text: promptText }],
                 },
               ],
               generationConfig: {
                 temperature: 0.1,
-                responseMimeType: 'application/json',
+                responseMimeType: "application/json",
                 ...(extendedThinking && supportsThinkingLevel
                   ? {
                       thinkingConfig: {
-                        thinkingLevel: 'high',
+                        thinkingLevel: "high",
                       },
                     }
                   : {}),
@@ -557,13 +624,14 @@ The category field must be one of: (${tagValues}).`;
 
           if (!response.ok) {
             const errBody = await response.json().catch(() => null);
-            const msg = errBody?.error?.message || `HTTP ${response.status} (${response.statusText})`;
+            const msg =
+              errBody?.error?.message || `HTTP ${response.status} (${response.statusText})`;
             lastErrorDetails = msg;
 
             if (response.status === 401 || response.status === 403) {
               return {
                 data: null,
-                error: `[Google ${response.status}] ${msg}`
+                error: `[Google ${response.status}] ${msg}`,
               };
             }
 
@@ -589,10 +657,10 @@ The category field must be one of: (${tagValues}).`;
             }
           }
 
-          lastErrorDetails = 'Empty or invalid response from model';
+          lastErrorDetails = "Empty or invalid response from model";
           break;
         } catch (err: any) {
-          lastErrorDetails = err?.message || 'Network fetch error';
+          lastErrorDetails = err?.message || "Network fetch error";
           if (attempt < MAX_RETRIES) {
             continue;
           }
@@ -603,7 +671,7 @@ The category field must be one of: (${tagValues}).`;
     if (attemptedFallback) {
       return { data: null, error: t.allModelsOverloaded };
     }
-    return { data: null, error: lastErrorDetails || 'Failed to connect to Google Gemini' };
+    return { data: null, error: lastErrorDetails || "Failed to connect to Google Gemini" };
   };
 
   const handleAnalyzeCurrent = async (ocrOnly = false): Promise<void> => {
@@ -624,12 +692,12 @@ The category field must be one of: (${tagValues}).`;
     if (res && res.length > 0) {
       setResultsMap((prev) => ({ ...prev, [activeImage.id]: res }));
       toast.success(t.successExtract);
-      setView('results');
+      setView("results");
       if (activeImage) {
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (session?.user) {
             supabase
-              .from('user_history')
+              .from("user_history")
               .insert({
                 user_id: session.user.id,
                 image_name: activeImage.name,
@@ -637,7 +705,7 @@ The category field must be one of: (${tagValues}).`;
               })
               .then(({ error: histError }) => {
                 if (histError) {
-                  console.error('Failed to save history:', histError);
+                  console.error("Failed to save history:", histError);
                   toast.error(t.historySaveError, { duration: 4000 });
                 }
               });
@@ -647,7 +715,7 @@ The category field must be one of: (${tagValues}).`;
     } else {
       const errorMsg = error || t.checkApiKey;
       toast.error(`❌ ${errorMsg}`, { duration: 8000 });
-      if (cleanApiKey.startsWith('AQ.')) {
+      if (cleanApiKey.startsWith("AQ.")) {
         setShowKeyHelpModal(true);
       }
     }
@@ -668,7 +736,7 @@ The category field must be one of: (${tagValues}).`;
     setIsAnalyzing(true);
     const newMap = { ...resultsMap };
     let successCount = 0;
-    let lastError = '';
+    let lastError = "";
 
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
@@ -688,30 +756,33 @@ The category field must be one of: (${tagValues}).`;
 
     if (successCount > 0) {
       toast.success(t.processedImages(successCount));
-      setView('results');
+      setView("results");
     } else {
       toast.error(`❌ ${lastError || t.extractionFailed}`, { duration: 8000 });
-      if (cleanApiKey.startsWith('AQ.')) {
+      if (cleanApiKey.startsWith("AQ.")) {
         setShowKeyHelpModal(true);
       }
     }
   };
 
-  const handleExportText = (scope: 'current' | 'all', textType: 'original' | 'translated'): void => {
-    const targetImages = scope === 'current' ? (activeImage ? [activeImage] : []) : images;
+  const handleExportText = (
+    scope: "current" | "all",
+    textType: "original" | "translated",
+  ): void => {
+    const targetImages = scope === "current" ? (activeImage ? [activeImage] : []) : images;
     if (targetImages.length === 0) return;
 
-    let fullOutput = '';
+    let fullOutput = "";
     targetImages.forEach((img) => {
       const realIndex = images.findIndex((i) => i.id === img.id);
       const itemsForImg = resultsMap[img.id] || [];
       if (itemsForImg.length > 0) {
         fullOutput += `=== Page ${realIndex + 1}: ${img.name} ===\n\n`;
         itemsForImg.forEach((item) => {
-          const contentToExport = textType === 'original' ? item.originalText : item.translatedText;
-          fullOutput += formatTextWithRules(contentToExport, item.category) + '\n\n';
+          const contentToExport = textType === "original" ? item.originalText : item.translatedText;
+          fullOutput += formatTextWithRules(contentToExport, item.category) + "\n\n";
         });
-        fullOutput += '\n';
+        fullOutput += "\n";
       }
     });
 
@@ -720,15 +791,20 @@ The category field must be one of: (${tagValues}).`;
       return;
     }
 
-    const blob = new Blob([fullOutput], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([fullOutput], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
-    
-    const fileName = textType === 'original'
-      ? (scope === 'current' ? `page_${activeImageIndex + 1}_ocr_original_script.txt` : `full_ocr_original_script.txt`)
-      : (scope === 'current' ? `page_${activeImageIndex + 1}_translated_script.txt` : `full_translated_script.txt`);
-    
+
+    const fileName =
+      textType === "original"
+        ? scope === "current"
+          ? `page_${activeImageIndex + 1}_ocr_original_script.txt`
+          : `full_ocr_original_script.txt`
+        : scope === "current"
+          ? `page_${activeImageIndex + 1}_translated_script.txt`
+          : `full_translated_script.txt`;
+
     link.download = fileName;
     document.body.appendChild(link);
     link.click();
@@ -748,7 +824,9 @@ The category field must be one of: (${tagValues}).`;
   };
 
   return (
-    <div className={`min-h-screen bg-background text-foreground p-4 sm:p-8 w-full max-w-[1550px] mx-auto ${lang === 'ar' ? 'dir-rtl' : 'dir-ltr'}`}>
+    <div
+      className={`min-h-screen bg-background text-foreground p-4 sm:p-8 w-full max-w-[1550px] mx-auto ${lang === "ar" ? "dir-rtl" : "dir-ltr"}`}
+    >
       {/* Header */}
       <header className="mb-6 flex flex-col xl:flex-row items-start xl:items-center justify-between border-b border-border pb-4 gap-4">
         <div>
@@ -784,12 +862,8 @@ The category field must be one of: (${tagValues}).`;
                 onCheckedChange={(checked) => setExtendedThinking(checked === true)}
                 aria-label="Extended Thinking"
               />
-              <span className="text-[10px] font-bold whitespace-nowrap">
-                Extended Thinking
-              </span>
+              <span className="text-[10px] font-bold whitespace-nowrap">Extended Thinking</span>
             </div>
-
-
           </div>
 
           {/* زر مشروع جديد */}
@@ -805,7 +879,10 @@ The category field must be one of: (${tagValues}).`;
           {/* نافذة القاموس */}
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="outline" className="h-9 gap-1.5 text-xs font-bold px-3 rounded-xl border-orange-500/40 text-orange-600 dark:text-orange-400">
+              <Button
+                variant="outline"
+                className="h-9 gap-1.5 text-xs font-bold px-3 rounded-xl border-orange-500/40 text-orange-600 dark:text-orange-400"
+              >
                 <BookOpen className="w-4 h-4 text-orange-500" />
                 {t.glossaryTitle} ({glossary.length})
               </Button>
@@ -817,24 +894,47 @@ The category field must be one of: (${tagValues}).`;
               <div className="space-y-4 py-2">
                 <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
                   {glossary.map((g) => (
-                    <div key={g.id} className="flex items-center justify-between bg-muted/40 p-2 rounded-lg text-xs">
+                    <div
+                      key={g.id}
+                      className="flex items-center justify-between bg-muted/40 p-2 rounded-lg text-xs"
+                    >
                       <span className="font-bold text-foreground">{g.original}</span>
                       <span className="text-orange-500 font-bold">←</span>
                       <span className="font-bold text-foreground">{g.translation}</span>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteGlossaryItem(g.id)} className="h-6 w-6 text-red-500">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteGlossaryItem(g.id)}
+                        className="h-6 w-6 text-red-500"
+                      >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
                   ))}
                   {glossary.length === 0 && (
-                    <p className="text-xs text-center text-muted-foreground py-4">{t.glossaryEmpty}</p>
+                    <p className="text-xs text-center text-muted-foreground py-4">
+                      {t.glossaryEmpty}
+                    </p>
                   )}
                 </div>
 
                 <div className="border-t border-border pt-3 space-y-2">
-                  <Input placeholder={t.origTerm} value={newGlossaryOrig} onChange={(e) => setNewGlossaryOrig(e.target.value)} className="h-8 text-xs" />
-                  <Input placeholder={t.transTerm} value={newGlossaryTrans} onChange={(e) => setNewGlossaryTrans(e.target.value)} className="h-8 text-xs" />
-                  <Button onClick={handleAddGlossaryItem} className="w-full h-8 text-xs font-bold bg-orange-600 text-white">
+                  <Input
+                    placeholder={t.origTerm}
+                    value={newGlossaryOrig}
+                    onChange={(e) => setNewGlossaryOrig(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                  <Input
+                    placeholder={t.transTerm}
+                    value={newGlossaryTrans}
+                    onChange={(e) => setNewGlossaryTrans(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                  <Button
+                    onClick={handleAddGlossaryItem}
+                    className="w-full h-8 text-xs font-bold bg-orange-600 text-white"
+                  >
                     <Plus className="w-3.5 h-3.5 ml-1" /> {t.addGlossary}
                   </Button>
                 </div>
@@ -854,7 +954,12 @@ The category field must be one of: (${tagValues}).`;
               <DialogHeader>
                 <DialogTitle className="text-base font-bold flex items-center justify-between">
                   <span>{t.tagSettings}</span>
-                  <Button variant="ghost" size="sm" onClick={() => setTags(DEFAULT_TAGS)} className="text-xs text-muted-foreground hover:text-orange-500 gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setTags(DEFAULT_TAGS)}
+                    className="text-xs text-muted-foreground hover:text-orange-500 gap-1"
+                  >
                     <RotateCcw className="w-3.5 h-3.5" /> {t.resetDefaultTags}
                   </Button>
                 </DialogTitle>
@@ -865,7 +970,10 @@ The category field must be one of: (${tagValues}).`;
                 </p>
                 <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
                   {tags.map((tag, i) => (
-                    <div key={tag.value || i} className="flex items-center gap-1.5 bg-muted/40 p-2 rounded-lg text-xs">
+                    <div
+                      key={tag.value || i}
+                      className="flex items-center gap-1.5 bg-muted/40 p-2 rounded-lg text-xs"
+                    >
                       <span className="font-bold w-24 truncate">{getTagLabel(tag, lang)}</span>
                       <Input
                         value={tag.prefix}
@@ -887,7 +995,12 @@ The category field must be one of: (${tagValues}).`;
                         className="h-7 text-xs w-16"
                         placeholder="Suffix"
                       />
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteTag(i)} className="h-7 w-7 text-red-500">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteTag(i)}
+                        className="h-7 w-7 text-red-500"
+                      >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
@@ -895,12 +1008,30 @@ The category field must be one of: (${tagValues}).`;
                 </div>
 
                 <div className="border-t border-border pt-3 space-y-2">
-                  <Input placeholder={t.tagName} value={newTagLabel} onChange={(e) => setNewTagLabel(e.target.value)} className="h-8 text-xs" />
+                  <Input
+                    placeholder={t.tagName}
+                    value={newTagLabel}
+                    onChange={(e) => setNewTagLabel(e.target.value)}
+                    className="h-8 text-xs"
+                  />
                   <div className="flex gap-2">
-                    <Input placeholder={t.tagPrefix} value={newTagPrefix} onChange={(e) => setNewTagPrefix(e.target.value)} className="h-8 text-xs" />
-                    <Input placeholder={t.tagSuffix} value={newTagSuffix} onChange={(e) => setNewTagSuffix(e.target.value)} className="h-8 text-xs" />
+                    <Input
+                      placeholder={t.tagPrefix}
+                      value={newTagPrefix}
+                      onChange={(e) => setNewTagPrefix(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      placeholder={t.tagSuffix}
+                      value={newTagSuffix}
+                      onChange={(e) => setNewTagSuffix(e.target.value)}
+                      className="h-8 text-xs"
+                    />
                   </div>
-                  <Button onClick={handleAddCustomTag} className="w-full h-8 text-xs font-bold bg-orange-600 text-white">
+                  <Button
+                    onClick={handleAddCustomTag}
+                    className="w-full h-8 text-xs font-bold bg-orange-600 text-white"
+                  >
                     <Plus className="w-3.5 h-3.5 me-1" /> {t.add}
                   </Button>
                 </div>
@@ -911,44 +1042,68 @@ The category field must be one of: (${tagValues}).`;
           {/* نافذة كيفية الاستخدام (Tutorial) */}
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="ghost" className="h-9 gap-1 text-xs font-bold px-2 rounded-xl text-muted-foreground hover:text-orange-500">
+              <Button
+                variant="ghost"
+                className="h-9 gap-1 text-xs font-bold px-2 rounded-xl text-muted-foreground hover:text-orange-500"
+              >
                 <HelpCircle className="w-4 h-4" />
                 {t.howToUse}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg rounded-2xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="text-lg font-bold text-orange-600">{t.howToTitle}</DialogTitle>
+                <DialogTitle className="text-lg font-bold text-orange-600">
+                  {t.howToTitle}
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
                 <p>{t.howToIntro}</p>
                 <ul className="list-disc list-inside space-y-2">
-                  <li><strong>{t.howToStep1a}</strong> {t.howToStep1b}</li>
-                  <li><strong>{t.howToStep2a}</strong> {t.howToStep2b}</li>
-                  <li><strong>{t.howToStep3a}</strong> {t.howToStep3b}</li>
+                  <li>
+                    <strong>{t.howToStep1a}</strong> {t.howToStep1b}
+                  </li>
+                  <li>
+                    <strong>{t.howToStep2a}</strong> {t.howToStep2b}
+                  </li>
+                  <li>
+                    <strong>{t.howToStep3a}</strong> {t.howToStep3b}
+                  </li>
                 </ul>
               </div>
             </DialogContent>
           </Dialog>
 
           {/* زر ديسكورد مع مسار SVG نظيف */}
-          <a 
-            href="https://discord.gg/nuaqTHvx" 
-            target="_blank" 
+          <a
+            href="https://discord.gg/nuaqTHvx"
+            target="_blank"
             rel="noopener noreferrer"
             className="h-9 w-9 rounded-xl inline-flex items-center justify-center border border-input bg-background hover:bg-[#5865F2] hover:text-white hover:border-[#5865F2] transition-colors"
             title={t.joinDiscord}
           >
             <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .079.009c.12.098.245.195.372.288a.077.077 0 0 1-.006.128 12.299 12.299 0 0 1-1.873.891.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .079.009c.12.098.245.195.372.288a.077.077 0 0 1-.006.128 12.299 12.299 0 0 1-1.873.891.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
             </svg>
           </a>
 
-          <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl" onClick={() => setIsDarkMode(!isDarkMode)}>
-            {isDarkMode ? <Sun className="w-4 h-4 text-orange-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 rounded-xl"
+            onClick={() => setIsDarkMode(!isDarkMode)}
+          >
+            {isDarkMode ? (
+              <Sun className="w-4 h-4 text-orange-400" />
+            ) : (
+              <Moon className="w-4 h-4 text-slate-700" />
+            )}
           </Button>
 
-          <Button variant="outline" className="h-9 gap-1.5 text-xs font-bold px-3 rounded-xl" onClick={toggleLang}>
+          <Button
+            variant="outline"
+            className="h-9 gap-1.5 text-xs font-bold px-3 rounded-xl"
+            onClick={toggleLang}
+          >
             <Languages className="w-4 h-4 text-orange-500" />
             {t.switchLangLabel}
           </Button>
@@ -970,7 +1125,11 @@ The category field must be one of: (${tagValues}).`;
               title={t.testApiKey}
               className="h-7 px-2 text-[11px] text-orange-600 dark:text-orange-400 font-bold hover:bg-orange-500/10 rounded-lg gap-1"
             >
-              {isTestingKey ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+              {isTestingKey ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <CheckCircle className="w-3.5 h-3.5" />
+              )}
               <span>{t.test}</span>
             </Button>
             <Button
@@ -995,12 +1154,16 @@ The category field must be one of: (${tagValues}).`;
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 text-sm text-muted-foreground mt-2">
-            <p>
-              {t.keyHelpIntro}
-            </p>
+            <p>{t.keyHelpIntro}</p>
             <div className="bg-muted/40 p-3 rounded-xl border border-border/60 space-y-2 text-xs text-foreground">
-              <p>✅ <strong>{t.keyHelpValid}</strong> {t.keyHelpValidDesc} <code className="text-orange-500 font-mono font-bold">AIzaSy...</code></p>
-              <p>❌ <strong>{t.keyHelpInvalid}</strong> <code className="font-mono text-red-400">AQ...</code> {t.keyHelpInvalidDesc}</p>
+              <p>
+                ✅ <strong>{t.keyHelpValid}</strong> {t.keyHelpValidDesc}{" "}
+                <code className="text-orange-500 font-mono font-bold">AIzaSy...</code>
+              </p>
+              <p>
+                ❌ <strong>{t.keyHelpInvalid}</strong>{" "}
+                <code className="font-mono text-red-400">AQ...</code> {t.keyHelpInvalidDesc}
+              </p>
             </div>
             <ol className="list-decimal list-inside space-y-2 font-medium text-foreground text-xs leading-relaxed">
               <li>{t.keyHelpS1}</li>
@@ -1009,10 +1172,10 @@ The category field must be one of: (${tagValues}).`;
               <li>{t.keyHelpS4}</li>
             </ol>
             <div className="pt-2 flex gap-2">
-              <Button 
+              <Button
                 className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs h-10 rounded-xl"
                 onClick={() => {
-                  window.open('https://aistudio.google.com/app/apikey', '_blank');
+                  window.open("https://aistudio.google.com/app/apikey", "_blank");
                   setShowKeyHelpModal(false);
                 }}
               >
@@ -1038,7 +1201,10 @@ The category field must be one of: (${tagValues}).`;
             <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">
               {t.page} ({images.length}/15):
             </span>
-            <div className="flex gap-1.5 overflow-x-auto py-1" onDragEnd={() => setDraggedImageIndex(null)}>
+            <div
+              className="flex gap-1.5 overflow-x-auto py-1"
+              onDragEnd={() => setDraggedImageIndex(null)}
+            >
               {images.map((img, idx) => (
                 <div
                   key={img.id}
@@ -1050,45 +1216,65 @@ The category field must be one of: (${tagValues}).`;
                     setDraggedImageIndex(null);
                   }}
                   className={`relative flex items-center gap-1.5 shrink-0 rounded-lg px-2 py-1 transition-all ${
-                    activeImageIndex === idx ? 'bg-orange-600 text-white shadow-md' : 'bg-muted hover:bg-muted/80 text-foreground'
-                  } ${draggedImageIndex === idx ? 'opacity-50' : ''}`}
+                    activeImageIndex === idx
+                      ? "bg-orange-600 text-white shadow-md"
+                      : "bg-muted hover:bg-muted/80 text-foreground"
+                  } ${draggedImageIndex === idx ? "opacity-50" : ""}`}
                   title="اسحب الصفحة لتغيير ترتيبها"
                 >
                   <GripVertical className="w-3 h-3 cursor-grab opacity-60" />
-                  <button onClick={() => setActiveImageIndex(idx)} className="flex items-center gap-1.5 text-xs font-bold">
+                  <button
+                    onClick={() => setActiveImageIndex(idx)}
+                    className="flex items-center gap-1.5 text-xs font-bold"
+                  >
                     <span>#{idx + 1}</span>
-                    {resultsMap[img.id] && <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>}
+                    {resultsMap[img.id] && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                    )}
                   </button>
                   {editingImageId === img.id ? (
                     <>
                       <Input
                         value={editingImageName}
                         onChange={(e) => setEditingImageName(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') saveImageName(); }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveImageName();
+                        }}
                         className="h-6 w-28 bg-background text-foreground text-[10px] px-1"
                         autoFocus
                       />
-                      <button onClick={saveImageName} title="حفظ اسم الصفحة"><Check className="w-3 h-3" /></button>
+                      <button onClick={saveImageName} title="حفظ اسم الصفحة">
+                        <Check className="w-3 h-3" />
+                      </button>
                     </>
                   ) : (
                     <>
                       <span className="max-w-24 truncate text-[10px] opacity-80">{img.name}</span>
-                      <button onClick={() => startRenameImage(img)} title="إعادة تسمية الصفحة"><Pencil className="w-3 h-3 opacity-70 hover:opacity-100" /></button>
+                      <button onClick={() => startRenameImage(img)} title="إعادة تسمية الصفحة">
+                        <Pencil className="w-3 h-3 opacity-70 hover:opacity-100" />
+                      </button>
                     </>
                   )}
-                  <button onClick={() => handleRemoveImage(idx)} title="حذف الصفحة"><Trash2 className="w-3 h-3 hover:text-red-400" /></button>
+                  <button onClick={() => handleRemoveImage(idx)} title="حذف الصفحة">
+                    <Trash2 className="w-3 h-3 hover:text-red-400" />
+                  </button>
                 </div>
               ))}
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleClearAllImages} className="text-xs text-red-500 font-bold shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClearAllImages}
+            className="text-xs text-red-500 font-bold shrink-0"
+          >
             {t.clearAll}
           </Button>
         </div>
       )}
 
       {/* Main View Switcher */}
-      {view === 'upload' ? (
+      {view === "upload" ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <div className="lg:col-span-8 space-y-6">
             <UploadZone
@@ -1104,20 +1290,25 @@ The category field must be one of: (${tagValues}).`;
             />
 
             <div className="flex flex-col items-center justify-center mt-2">
-              <Label htmlFor="ref-upload" className="cursor-pointer flex items-center gap-2 text-xs text-muted-foreground hover:text-orange-500 transition-colors bg-muted/30 px-4 py-2 rounded-xl border border-dashed border-border/60">
+              <Label
+                htmlFor="ref-upload"
+                className="cursor-pointer flex items-center gap-2 text-xs text-muted-foreground hover:text-orange-500 transition-colors bg-muted/30 px-4 py-2 rounded-xl border border-dashed border-border/60"
+              >
                 <Paperclip className="w-4 h-4" />
                 {referenceFileName ? (
-                  <span className="font-bold text-orange-500">{t.referenceUploaded} {referenceFileName}</span>
+                  <span className="font-bold text-orange-500">
+                    {t.referenceUploaded} {referenceFileName}
+                  </span>
                 ) : (
                   <span>{t.uploadReference}</span>
                 )}
               </Label>
-              <input 
-                id="ref-upload" 
-                type="file" 
-                accept=".txt" 
-                className="hidden" 
-                onChange={handleReferenceUpload} 
+              <input
+                id="ref-upload"
+                type="file"
+                accept=".txt"
+                className="hidden"
+                onChange={handleReferenceUpload}
                 disabled={isAnalyzing}
               />
             </div>
@@ -1128,22 +1319,36 @@ The category field must be one of: (${tagValues}).`;
                   <div className="flex flex-col items-center gap-3 w-full max-w-md bg-card p-4 rounded-2xl border border-orange-500/30 shadow-lg animate-in fade-in zoom-in duration-300">
                     <div className="flex items-center gap-3">
                       <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
-                      <span className="text-sm font-bold text-foreground">{currentProcessingMsg}</span>
+                      <span className="text-sm font-bold text-foreground">
+                        {currentProcessingMsg}
+                      </span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                       <div className="bg-orange-500 h-full animate-[pulse_2s_ease-in-out_infinite] w-full origin-left scale-x-100"></div>
                     </div>
-                    <p className="text-[10px] text-muted-foreground text-center">{t.analysisWaitNote}</p>
+                    <p className="text-[10px] text-muted-foreground text-center">
+                      {t.analysisWaitNote}
+                    </p>
                   </div>
                 ) : (
                   <div className="flex flex-wrap justify-center gap-3 w-full animate-in fade-in zoom-in">
-                    <Button onClick={() => handleAnalyzeCurrent(false)} className="bg-orange-600 hover:bg-orange-700 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-md">
+                    <Button
+                      onClick={() => handleAnalyzeCurrent(false)}
+                      className="bg-orange-600 hover:bg-orange-700 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-md"
+                    >
                       <Sparkles className="w-4 h-4" /> {t.analyzeCurrent}
                     </Button>
-                    <Button onClick={() => handleAnalyzeCurrent(true)} variant="outline" className="border-orange-500/40 text-orange-600 dark:text-orange-400 font-bold h-11 px-6 rounded-xl gap-2">
+                    <Button
+                      onClick={() => handleAnalyzeCurrent(true)}
+                      variant="outline"
+                      className="border-orange-500/40 text-orange-600 dark:text-orange-400 font-bold h-11 px-6 rounded-xl gap-2"
+                    >
                       <FileText className="w-4 h-4" /> {t.extractOcrOnly}
                     </Button>
-                    <Button onClick={() => handleAnalyzeAll(false)} className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-md">
+                    <Button
+                      onClick={() => handleAnalyzeAll(false)}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-md"
+                    >
                       <Play className="w-4 h-4 text-orange-400" /> {t.analyzeAll} ({images.length})
                     </Button>
                   </div>
@@ -1159,23 +1364,47 @@ The category field must be one of: (${tagValues}).`;
       ) : (
         <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
           <div className="flex flex-wrap items-center justify-between bg-card p-4 rounded-2xl border border-border gap-3 shadow-sm">
-            <Button variant="outline" onClick={() => setView('upload')} className="gap-2 text-xs font-bold rounded-xl">
+            <Button
+              variant="outline"
+              onClick={() => setView("upload")}
+              className="gap-2 text-xs font-bold rounded-xl"
+            >
               <ArrowLeft className="w-4 h-4" /> {t.backToUpload}
             </Button>
 
             <div className="flex flex-wrap items-center gap-2 bg-muted/40 p-1.5 rounded-xl border border-border/60">
               <div className="flex items-center gap-1.5 px-2">
                 <Search className="w-3.5 h-3.5 text-muted-foreground" />
-                <Input placeholder={t.findPlaceholder} value={findText} onChange={(e) => setFindText(e.target.value)} className="h-7 text-xs w-28 bg-background" />
+                <Input
+                  placeholder={t.findPlaceholder}
+                  value={findText}
+                  onChange={(e) => setFindText(e.target.value)}
+                  className="h-7 text-xs w-28 bg-background"
+                />
               </div>
               <div className="flex items-center gap-1.5 px-1">
                 <Replace className="w-3.5 h-3.5 text-muted-foreground" />
-                <Input placeholder={t.replacePlaceholder} value={replaceText} onChange={(e) => setReplaceText(e.target.value)} className="h-7 text-xs w-28 bg-background" />
+                <Input
+                  placeholder={t.replacePlaceholder}
+                  value={replaceText}
+                  onChange={(e) => setReplaceText(e.target.value)}
+                  className="h-7 text-xs w-28 bg-background"
+                />
               </div>
-              <Button size="sm" variant="secondary" onClick={() => handleFindAndReplace('current')} className="h-7 text-[11px] font-bold px-2 rounded-lg">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => handleFindAndReplace("current")}
+                className="h-7 text-[11px] font-bold px-2 rounded-lg"
+              >
                 {t.replaceCurrentPage}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => handleFindAndReplace('all')} className="h-7 text-[11px] font-bold px-2 rounded-lg">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleFindAndReplace("all")}
+                className="h-7 text-[11px] font-bold px-2 rounded-lg"
+              >
                 {t.replaceAllPages}
               </Button>
             </div>
@@ -1194,33 +1423,64 @@ The category field must be one of: (${tagValues}).`;
                 />
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="ghost" onClick={() => handleAnalyzeCurrent(false)} disabled={isAnalyzing} className="gap-2 text-xs font-bold rounded-xl">
-                  <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzing ? 'animate-spin' : ''}`} /> {t.reAnalyze}
+                <Button
+                  variant="ghost"
+                  onClick={() => handleAnalyzeCurrent(false)}
+                  disabled={isAnalyzing}
+                  className="gap-2 text-xs font-bold rounded-xl"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzing ? "animate-spin" : ""}`} />{" "}
+                  {t.reAnalyze}
                 </Button>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="border-orange-500/40 text-orange-600 dark:text-orange-400 gap-1.5 text-xs font-bold rounded-xl">
-                    <FileDown className="w-4 h-4" /> {t.exportOriginal} <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="rounded-xl">
-                  <DropdownMenuItem onClick={() => handleExportText('current', 'original')} className="text-xs cursor-pointer font-medium">{t.exportCurrentPage}</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExportText('all', 'original')} className="text-xs cursor-pointer font-medium">{t.exportAllPages}</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="border-orange-500/40 text-orange-600 dark:text-orange-400 gap-1.5 text-xs font-bold rounded-xl"
+                    >
+                      <FileDown className="w-4 h-4" /> {t.exportOriginal}{" "}
+                      <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="rounded-xl">
+                    <DropdownMenuItem
+                      onClick={() => handleExportText("current", "original")}
+                      className="text-xs cursor-pointer font-medium"
+                    >
+                      {t.exportCurrentPage}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleExportText("all", "original")}
+                      className="text-xs cursor-pointer font-medium"
+                    >
+                      {t.exportAllPages}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="bg-orange-600 hover:bg-orange-700 text-white gap-1.5 text-xs font-bold rounded-xl shadow-sm">
-                    <Download className="w-4 h-4" /> {t.exportTranslated} <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="rounded-xl">
-                  <DropdownMenuItem onClick={() => handleExportText('current', 'translated')} className="text-xs cursor-pointer font-medium">{t.exportCurrentPage}</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExportText('all', 'translated')} className="text-xs cursor-pointer font-medium">{t.exportAllPages}</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className="bg-orange-600 hover:bg-orange-700 text-white gap-1.5 text-xs font-bold rounded-xl shadow-sm">
+                      <Download className="w-4 h-4" /> {t.exportTranslated}{" "}
+                      <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="rounded-xl">
+                    <DropdownMenuItem
+                      onClick={() => handleExportText("current", "translated")}
+                      className="text-xs cursor-pointer font-medium"
+                    >
+                      {t.exportCurrentPage}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleExportText("all", "translated")}
+                      className="text-xs cursor-pointer font-medium"
+                    >
+                      {t.exportAllPages}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </div>
@@ -1228,15 +1488,21 @@ The category field must be one of: (${tagValues}).`;
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="rounded-2xl overflow-hidden border-border bg-zinc-950/5 flex flex-col h-[750px]">
               <div className="p-3 border-b border-border bg-card/60 flex justify-between items-center text-xs text-muted-foreground font-semibold">
-                <span>{t.pagePreview} (#{activeImageIndex + 1})</span>
+                <span>
+                  {t.pagePreview} (#{activeImageIndex + 1})
+                </span>
                 <div className="flex items-center gap-2">
                   <Button
                     variant={showOverlay ? "default" : "outline"}
                     size="sm"
                     onClick={() => setShowOverlay(!showOverlay)}
-                    className={`h-7 text-[11px] font-bold gap-1 rounded-lg ${showOverlay ? 'bg-orange-600 text-white shadow-md' : ''}`}
+                    className={`h-7 text-[11px] font-bold gap-1 rounded-lg ${showOverlay ? "bg-orange-600 text-white shadow-md" : ""}`}
                   >
-                    {showOverlay ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    {showOverlay ? (
+                      <Eye className="w-3.5 h-3.5" />
+                    ) : (
+                      <EyeOff className="w-3.5 h-3.5" />
+                    )}
                     {t.visualOverlay}
                   </Button>
                 </div>
@@ -1249,22 +1515,25 @@ The category field must be one of: (${tagValues}).`;
                       alt="Manga Page"
                       className="w-full h-auto object-contain rounded-lg shadow-md"
                     />
-                    {showOverlay && currentItems.map((item, idx) => (
-                      <div
-                        key={item.id}
-                        onMouseEnter={() => setHoveredItemId(item.id)}
-                        onMouseLeave={() => setHoveredItemId(null)}
-                        style={{ top: `${item.topPercent ?? ((idx + 1) * 15)}%` }}
-                        className={`absolute left-1/2 -translate-x-1/2 w-[85%] bg-black/80 backdrop-blur-md text-white border text-center p-2 rounded-xl text-xs font-bold transition-all shadow-xl cursor-pointer ${
-                          hoveredItemId === item.id
-                            ? 'border-orange-500 scale-105 bg-orange-950/90 text-orange-200 ring-2 ring-orange-500 z-10'
-                            : 'border-orange-500/40 hover:border-orange-400 z-0'
-                        }`}
-                      >
-                        <span className="text-[10px] text-orange-400 block mb-0.5">#{idx + 1} ({item.category})</span>
-                        {item.translatedText}
-                      </div>
-                    ))}
+                    {showOverlay &&
+                      currentItems.map((item, idx) => (
+                        <div
+                          key={item.id}
+                          onMouseEnter={() => setHoveredItemId(item.id)}
+                          onMouseLeave={() => setHoveredItemId(null)}
+                          style={{ top: `${item.topPercent ?? (idx + 1) * 15}%` }}
+                          className={`absolute left-1/2 -translate-x-1/2 w-[85%] bg-black/80 backdrop-blur-md text-white border text-center p-2 rounded-xl text-xs font-bold transition-all shadow-xl cursor-pointer ${
+                            hoveredItemId === item.id
+                              ? "border-orange-500 scale-105 bg-orange-950/90 text-orange-200 ring-2 ring-orange-500 z-10"
+                              : "border-orange-500/40 hover:border-orange-400 z-0"
+                          }`}
+                        >
+                          <span className="text-[10px] text-orange-400 block mb-0.5">
+                            #{idx + 1} ({item.category})
+                          </span>
+                          {item.translatedText}
+                        </div>
+                      ))}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground m-auto">{t.noImage}</p>
@@ -1296,8 +1565,8 @@ The category field must be one of: (${tagValues}).`;
                   onMouseLeave={() => setHoveredItemId(null)}
                   className={`p-4 space-y-3 border-border rounded-xl shadow-sm transition-all duration-200 ${
                     hoveredItemId === item.id
-                      ? 'border-orange-500 ring-1 ring-orange-500/40 bg-orange-500/5'
-                      : 'hover:border-orange-500/30'
+                      ? "border-orange-500 ring-1 ring-orange-500/40 bg-orange-500/5"
+                      : "hover:border-orange-500/30"
                   }`}
                 >
                   <div className="flex flex-wrap justify-between items-center text-xs text-muted-foreground font-semibold gap-2">
@@ -1306,10 +1575,22 @@ The category field must be one of: (${tagValues}).`;
                         {t.paragraph} #{idx + 1}
                       </span>
                       <div className="flex items-center gap-0.5">
-                        <Button variant="ghost" size="icon" disabled={idx === 0} onClick={() => handleMoveItem(idx, 'up')} className="h-6 w-6 rounded-md">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={idx === 0}
+                          onClick={() => handleMoveItem(idx, "up")}
+                          className="h-6 w-6 rounded-md"
+                        >
                           <ArrowUp className="w-3 h-3" />
                         </Button>
-                        <Button variant="ghost" size="icon" disabled={idx === currentItems.length - 1} onClick={() => handleMoveItem(idx, 'down')} className="h-6 w-6 rounded-md">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={idx === currentItems.length - 1}
+                          onClick={() => handleMoveItem(idx, "down")}
+                          className="h-6 w-6 rounded-md"
+                        >
                           <ArrowDown className="w-3 h-3" />
                         </Button>
                       </div>
@@ -1319,20 +1600,29 @@ The category field must be one of: (${tagValues}).`;
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleCopyText(formatTextWithRules(item.translatedText, item.category))}
+                        onClick={() =>
+                          handleCopyText(formatTextWithRules(item.translatedText, item.category))
+                        }
                         className="h-7 px-2 text-[11px] gap-1 font-bold text-muted-foreground hover:text-orange-500"
                       >
                         <Copy className="w-3.5 h-3.5" />
                         {t.copyBlock}
                       </Button>
 
-                      <Select value={item.category} onValueChange={(val) => updateItem(item.id, 'category', val)}>
+                      <Select
+                        value={item.category}
+                        onValueChange={(val) => updateItem(item.id, "category", val)}
+                      >
                         <SelectTrigger className="w-[150px] h-8 text-xs font-bold rounded-lg bg-background">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl">
                           {tags.map((tag) => (
-                            <SelectItem key={tag.value} value={tag.value} className="text-xs font-medium">
+                            <SelectItem
+                              key={tag.value}
+                              value={tag.value}
+                              className="text-xs font-medium"
+                            >
                               {getTagLabel(tag, lang)}
                             </SelectItem>
                           ))}
@@ -1342,10 +1632,12 @@ The category field must be one of: (${tagValues}).`;
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs font-semibold text-muted-foreground">{t.originalText}</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground">
+                      {t.originalText}
+                    </Label>
                     <Textarea
                       value={item.originalText}
-                      onChange={(e) => updateItem(item.id, 'originalText', e.target.value)}
+                      onChange={(e) => updateItem(item.id, "originalText", e.target.value)}
                       className="min-h-[50px] text-sm dir-ltr bg-muted/30 border-border/50 rounded-lg focus-visible:ring-1 focus-visible:ring-orange-500/50"
                     />
                   </div>
@@ -1356,7 +1648,7 @@ The category field must be one of: (${tagValues}).`;
                     </Label>
                     <Textarea
                       value={item.translatedText}
-                      onChange={(e) => updateItem(item.id, 'translatedText', e.target.value)}
+                      onChange={(e) => updateItem(item.id, "translatedText", e.target.value)}
                       className="min-h-[50px] text-sm font-medium bg-card rounded-lg focus-visible:ring-1 focus-visible:ring-orange-500"
                     />
                   </div>

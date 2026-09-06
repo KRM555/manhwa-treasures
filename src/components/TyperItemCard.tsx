@@ -1,13 +1,13 @@
-import React from 'react';
-import { DetectedBubble } from '@/types/manga';
+import React from "react";
+import { DetectedBubble } from "@/types/manga";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { useI18n } from '@/lib/language';
+} from "@/components/ui/select";
+import { useI18n } from "@/lib/language";
 
 interface TyperItemCardProps {
   item: DetectedBubble;
@@ -17,46 +17,46 @@ interface TyperItemCardProps {
 export const TyperItemCard: React.FC<TyperItemCardProps> = ({ item, onChange }) => {
   const { t } = useI18n();
   const categories = [
-    { value: 'dialogue', label: 'حوار ""' },
-    { value: 'thought', label: 'أفكار ()' },
-    { value: 'scream', label: 'صراخ ::' },
-    { value: 'sfx', label: 'مؤثرات SFX:' },
-    { value: 'system', label: 'نظام []' },
-    { value: 'narrator', label: 'كلام خارجي OT:' },
+    { value: "dialogue", label: 'حوار ""' },
+    { value: "thought", label: "أفكار ()" },
+    { value: "scream", label: "صراخ ::" },
+    { value: "sfx", label: "مؤثرات SFX:" },
+    { value: "system", label: "نظام []" },
+    { value: "narrator", label: "كلام خارجي OT:" },
   ];
 
   const handleCategoryChange = (newCategory: string) => {
-    let cleanText = item.translatedText
-      .replace(/^::\s*/, '')
-      .replace(/^\(\)\s*/, '')
-      .replace(/^""\s*/, '')
-      .replace(/^SFX:\s*/, '')
-      .replace(/^OT:\s*/, '')
-      .replace(/^\[\]\s*/, '');
+    const cleanText = item.translatedText
+      .replace(/^::\s*/, "")
+      .replace(/^\(\)\s*/, "")
+      .replace(/^""\s*/, "")
+      .replace(/^SFX:\s*/, "")
+      .replace(/^OT:\s*/, "")
+      .replace(/^\[\]\s*/, "");
 
-    let prefix = '';
+    let prefix = "";
     switch (newCategory) {
-      case 'scream':
-      case 'anger':
-        prefix = ':: ';
+      case "scream":
+      case "anger":
+        prefix = ":: ";
         break;
-      case 'thought':
-        prefix = '() ';
+      case "thought":
+        prefix = "() ";
         break;
-      case 'dialogue':
-      case 'whisper':
+      case "dialogue":
+      case "whisper":
         prefix = '"" ';
         break;
-      case 'sfx':
-        prefix = 'SFX: ';
+      case "sfx":
+        prefix = "SFX: ";
         break;
-      case 'system':
-      case 'phone':
-        prefix = '[] ';
+      case "system":
+      case "phone":
+        prefix = "[] ";
         break;
-      case 'narrator':
-      case 'other':
-        prefix = 'OT: ';
+      case "narrator":
+      case "other":
+        prefix = "OT: ";
         break;
       default:
         prefix = '"" ';
@@ -70,7 +70,7 @@ export const TyperItemCard: React.FC<TyperItemCardProps> = ({ item, onChange }) 
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground font-mono">ID: #{item.id}</span>
         <div className="w-40">
-          <Select value={item.category || 'dialogue'} onValueChange={handleCategoryChange}>
+          <Select value={item.category || "dialogue"} onValueChange={handleCategoryChange}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder={t.ticChooseCategory} />
             </SelectTrigger>

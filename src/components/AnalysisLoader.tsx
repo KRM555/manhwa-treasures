@@ -1,7 +1,7 @@
-import React from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Sparkles, Scan, Eraser, Languages, Type, CheckCircle2 } from 'lucide-react';
+import React from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Sparkles, Scan, Eraser, Languages, Type, CheckCircle2 } from "lucide-react";
 
 interface AnalysisLoaderProps {
   currentStep: number;
@@ -26,7 +26,9 @@ export const AnalysisLoader: React.FC<AnalysisLoaderProps> = ({ currentStep, pro
             </div>
             <div>
               <h4 className="font-bold text-base text-foreground">AI Processing in Progress</h4>
-              <p className="text-xs text-muted-foreground">Running manga-specialized OCR neural models...</p>
+              <p className="text-xs text-muted-foreground">
+                Running manga-specialized OCR neural models...
+              </p>
             </div>
           </div>
           <span className="text-sm font-extrabold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/40 px-3 py-1 rounded-full">
@@ -47,17 +49,19 @@ export const AnalysisLoader: React.FC<AnalysisLoaderProps> = ({ currentStep, pro
                 key={step.label}
                 className={`p-3 rounded-xl border transition-all flex items-center gap-3 ${
                   isDone
-                    ? 'border-green-500/40 bg-green-50/50 dark:bg-green-950/20 text-foreground'
+                    ? "border-green-500/40 bg-green-50/50 dark:bg-green-950/20 text-foreground"
                     : isCurrent
-                    ? 'border-orange-500 bg-orange-100/50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 shadow-sm'
-                    : 'border-border/50 bg-muted/20 text-muted-foreground opacity-60'
+                      ? "border-orange-500 bg-orange-100/50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 shadow-sm"
+                      : "border-border/50 bg-muted/20 text-muted-foreground opacity-60"
                 }`}
               >
                 <div className="shrink-0">
                   {isDone ? (
                     <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
                   ) : (
-                    <Icon className={`w-5 h-5 ${isCurrent ? 'animate-bounce text-orange-600' : ''}`} />
+                    <Icon
+                      className={`w-5 h-5 ${isCurrent ? "animate-bounce text-orange-600" : ""}`}
+                    />
                   )}
                 </div>
                 <p className="text-xs font-semibold leading-tight">{step.label}</p>

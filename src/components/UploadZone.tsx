@@ -1,13 +1,19 @@
-import { useRef } from 'react';
-import { TranslationConfig } from '@/types/manga';
-import { Upload, FileArchive, Sparkles } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { toast } from 'sonner';
-import JSZip from 'jszip';
-import { useI18n } from '@/lib/language';
+import { useRef } from "react";
+import { TranslationConfig } from "@/types/manga";
+import { Upload, FileArchive, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
+import JSZip from "jszip";
+import { useI18n } from "@/lib/language";
 
 interface UploadZoneProps {
   imagePreview: string | null;
@@ -33,15 +39,17 @@ export function UploadZone({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useI18n();
 
-  const sortImageNames = (names: string[]) => [...names].sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-  );
+  const sortImageNames = (names: string[]) =>
+    [...names].sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
+    );
 
-  const hasPageNumber = (name: string) => /(?:^|[^0-9])(?:page|pg|p|chapter|ch)?[_ -]?[0-9]+(?:[^0-9]|$)/i.test(name);
+  const hasPageNumber = (name: string) =>
+    /(?:^|[^0-9])(?:page|pg|p|chapter|ch)?[_ -]?[0-9]+(?:[^0-9]|$)/i.test(name);
 
   const processFiles = async (files: FileList | File[]) => {
     const fileList = Array.from(files);
-    const zipFile = fileList.find((f) => f.name.endsWith('.zip') || f.type.includes('zip'));
+    const zipFile = fileList.find((f) => f.name.endsWith(".zip") || f.type.includes("zip"));
 
     if (zipFile) {
       try {
@@ -51,7 +59,7 @@ export function UploadZone({
         const extractedImages: { url: string; name: string }[] = [];
 
         const entries = Object.keys(zipContent.files).filter((filename) =>
-          /\.(jpg|jpeg|png|webp)$/i.test(filename)
+          /\.(jpg|jpeg|png|webp)$/i.test(filename),
         );
 
         if (entries.length === 0) {
@@ -61,17 +69,17 @@ export function UploadZone({
 
         const sortedEntries = sortImageNames(entries);
         if (entries.some((entry, index) => entry !== sortedEntries[index])) {
-          toast.warning('تم ترتيب صور ZIP تلقائيًا حسب أسماء الملفات. راجع الترتيب قبل التحليل.');
+          toast.warning("تم ترتيب صور ZIP تلقائيًا حسب أسماء الملفات. راجع الترتيب قبل التحليل.");
         }
         if (sortedEntries.some((entry) => !hasPageNumber(entry))) {
-          toast.warning('بعض أسماء الملفات لا تحتوي على رقم صفحة واضح؛ راجع الترتيب يدويًا.');
+          toast.warning("بعض أسماء الملفات لا تحتوي على رقم صفحة واضح؛ راجع الترتيب يدويًا.");
         }
 
         const selectedEntries = sortedEntries.slice(0, 15);
         for (const entryName of selectedEntries) {
-          const fileData = await zipContent.files[entryName]!.async('base64');
-          const ext = entryName.split('.').pop()?.toLowerCase() || 'jpeg';
-          const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+          const fileData = await zipContent.files[entryName]!.async("base64");
+          const ext = entryName.split(".").pop()?.toLowerCase() || "jpeg";
+          const mime = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
           extractedImages.push({
             url: `data:${mime};base64,${fileData}`,
             name: entryName,
@@ -91,13 +99,15 @@ export function UploadZone({
     }
 
     const imageFiles = fileList
-      .filter((f) => f.type.startsWith('image/'))
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
+      .filter((f) => f.type.startsWith("image/"))
+      .sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }),
+      )
       .slice(0, 15);
     if (imageFiles.length === 0) return;
 
     if (imageFiles.some((file) => !hasPageNumber(file.name))) {
-      toast.warning('بعض أسماء الملفات لا تحتوي على رقم صفحة واضح؛ راجع الترتيب يدويًا.');
+      toast.warning("بعض أسماء الملفات لا تحتوي على رقم صفحة واضح؛ راجع الترتيب يدويًا.");
     }
 
     if (imageFiles.length === 1) {
@@ -200,7 +210,9 @@ export function UploadZone({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-xs font-bold text-muted-foreground uppercase">{t.targetLang}</label>
+            <label className="text-xs font-bold text-muted-foreground uppercase">
+              {t.targetLang}
+            </label>
             <Select
               value={config.targetLanguage}
               onValueChange={(val) => onConfigChange({ targetLanguage: val })}
@@ -224,7 +236,10 @@ export function UploadZone({
                 className="mt-0.5"
               />
               <div className="space-y-0.5">
-                <label htmlFor="sfx" className="text-xs font-bold cursor-pointer text-foreground block">
+                <label
+                  htmlFor="sfx"
+                  className="text-xs font-bold cursor-pointer text-foreground block"
+                >
                   {t.sfxLabel}
                 </label>
                 <p className="text-[11px] text-muted-foreground">{t.sfxSub}</p>
@@ -239,7 +254,10 @@ export function UploadZone({
                 className="mt-0.5"
               />
               <div className="space-y-0.5">
-                <label htmlFor="vertical" className="text-xs font-bold cursor-pointer text-foreground block">
+                <label
+                  htmlFor="vertical"
+                  className="text-xs font-bold cursor-pointer text-foreground block"
+                >
                   {t.verticalLabel}
                 </label>
                 <p className="text-[11px] text-muted-foreground">{t.verticalSub}</p>
