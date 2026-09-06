@@ -8,6 +8,24 @@ export type Database = {
   };
   public: {
     Tables: {
+      vip_users: {
+        Row: {
+          created_at: string;
+          email: string;
+          id: string;
+        };
+        Insert: {
+          created_at?: string;
+          email: string;
+          id?: string;
+        };
+        Update: {
+          created_at?: string;
+          email?: string;
+          id?: string;
+        };
+        Relationships: [];
+      };
       user_history: {
         Row: {
           created_at: string;

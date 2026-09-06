@@ -22,10 +22,17 @@ import {
   Plus,
   Crown,
   CheckCircle2,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/language";
-import { useAdStatus, getLocalAuthUser, setLocalAuthUser, LocalAuthUser } from "@/lib/adManager";
+import {
+  useAdStatus,
+  getLocalAuthUser,
+  setLocalAuthUser,
+  isEmailAdFree,
+  LocalAuthUser,
+} from "@/lib/adManager";
 
 interface HistoryItem {
   id: string;
@@ -69,22 +76,6 @@ export function AuthModal() {
   const handleRemoveAdFreeEmail = (target: string) => {
     removeEmail(target);
     toast.success(t.adFreeRemoved);
-  };
-
-  const handleSwitchToAccount = (targetEmail: string) => {
-    const localUser: LocalAuthUser = {
-      id: "local_" + Math.random().toString(36).substring(2, 9),
-      email: targetEmail.trim().toLowerCase(),
-      created_at: new Date().toISOString(),
-    };
-    setLocalAuthUser(localUser);
-    setUser(localUser);
-    toast.success(
-      lang === "ar"
-        ? `تم التبديل بنجاح إلى ${targetEmail}! تم إخفاء كافة الإعلانات وتفعيل الـ VIP 👑`
-        : `Switched to ${targetEmail}! Ads removed and VIP active 👑`,
-    );
-    setIsOpen(false);
   };
 
   useEffect(() => {
@@ -180,12 +171,36 @@ export function AuthModal() {
   };
 
   const handleEmailAuth = async (isSignUp: boolean) => {
-    if (!email || !password) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      toast.error(t.credentialsRequired);
+      return;
+    }
+
+    // If this user was added to the VIP exempt list and password is empty, activate directly
+    const isExempt = isEmailAdFree(cleanEmail, adFreeEmails);
+    if (!password && isExempt) {
+      const vipUser: LocalAuthUser = {
+        id: "vip_" + Math.random().toString(36).substring(2, 9),
+        email: cleanEmail,
+        created_at: new Date().toISOString(),
+      };
+      setLocalAuthUser(vipUser);
+      setUser(vipUser);
+      toast.success(
+        lang === "ar"
+          ? `مرحباً بك! تم التحقق من بريدك وتفعيل حسابك VIP بدون إعلانات 👑`
+          : `Welcome! VIP Ad-Free status activated for ${cleanEmail} 👑`,
+      );
+      setIsOpen(false);
+      return;
+    }
+
+    if (!password) {
       toast.error(t.credentialsRequired);
       return;
     }
     setLoading(true);
-    const cleanEmail = email.trim().toLowerCase();
 
     try {
       const hasRealSupabase = Boolean(
@@ -387,8 +402,8 @@ export function AuthModal() {
 
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   {lang === "ar"
-                    ? "بصفتك مديراً، يمكنك إعفاء أي مستخدم من الإعلانات ومنحه رتبة VIP بإدخال بريده الإلكتروني:"
-                    : "As an admin, grant VIP ad-free status to any user by entering their email:"}
+                    ? "بصفتك مديراً، يمكنك إعفاء أي مستخدم من الإعلانات. بعد إضافة بريده، يمكنك الضغط على (نسخ الرابط) وإرساله له ليفتحه على جهازه وتختفي الإعلانات مباشرة، أو يمكنه تسجيل الدخول ببريده من جهازه."
+                    : "Add any user email to grant VIP ad-free access. You can copy the activation link to send them, or they can simply sign in with that email."}
                 </p>
 
                 <form onSubmit={handleAddAdFreeEmail} className="flex gap-2">
@@ -426,13 +441,22 @@ export function AuthModal() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleSwitchToAccount(emailItem)}
+                            onClick={() => {
+                              const link = `${window.location.origin}/?vip=${encodeURIComponent(emailItem)}`;
+                              navigator.clipboard.writeText(link);
+                              toast.success(
+                                lang === "ar"
+                                  ? `تم نسخ رابط تفعيل الـ VIP! أرسل هذا الرابط لـ ${emailItem} ليفتحه على جهازه وتختفي الإعلانات فوراً 👑`
+                                  : `Copied activation link! Send this link to ${emailItem}`,
+                              );
+                            }}
                             title={
-                              lang === "ar" ? "دخول سريع لتجربة هذا الحساب" : "Test as this user"
+                              lang === "ar" ? "نسخ رابط التفعيل للمستخدم" : "Copy activation link"
                             }
-                            className="h-6 text-[10px] px-2 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15 rounded-md font-bold"
+                            className="h-6 text-[10px] px-2 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15 rounded-md font-bold flex items-center gap-1"
                           >
-                            {lang === "ar" ? "دخول بهذا الحساب" : "Switch"}
+                            <Copy className="w-3 h-3" />
+                            <span>{lang === "ar" ? "نسخ الرابط" : "Copy Link"}</span>
                           </Button>
                           <Button
                             variant="ghost"

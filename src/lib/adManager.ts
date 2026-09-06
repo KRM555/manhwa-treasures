@@ -87,15 +87,15 @@ export function isAdminEmail(email?: string | null): boolean {
 }
 
 // Check if an email is ad-free (either admin or in exempt list)
-export function isEmailAdFree(email?: string | null): boolean {
+export function isEmailAdFree(email?: string | null, customList?: string[]): boolean {
   if (!email) return false;
   const norm = normalizeEmail(email);
   if (isAdminEmail(norm)) return true;
-  const exempts = getAdFreeEmails();
+  const exempts = customList || getAdFreeEmails();
   return exempts.includes(norm);
 }
 
-// Add an email to ad-free list
+// Add an email to ad-free list (syncs to Supabase vip_users & local server)
 export function addAdFreeEmail(email: string): boolean {
   const norm = normalizeEmail(email);
   if (!norm || !norm.includes("@")) return false;
@@ -103,7 +103,20 @@ export function addAdFreeEmail(email: string): boolean {
   const next = Array.from(new Set([...current, norm]));
   saveAdFreeEmails(next);
 
-  // Sync with server API
+  // 1. Sync to Supabase vip_users table
+  try {
+    supabase
+      .from("vip_users")
+      .upsert({ email: norm }, { onConflict: "email" })
+      .then(({ error }) => {
+        if (error) console.debug("Supabase VIP sync note:", error.message);
+      })
+      .catch(() => {});
+  } catch (e) {
+    console.debug("Supabase sync caught:", e);
+  }
+
+  // 2. Sync with local server API fallback
   if (typeof window !== "undefined") {
     fetch("/api/ad-exemptions", {
       method: "POST",
@@ -114,14 +127,28 @@ export function addAdFreeEmail(email: string): boolean {
   return true;
 }
 
-// Remove an email from ad-free list
+// Remove an email from ad-free list (deletes from Supabase vip_users & local server)
 export function removeAdFreeEmail(email: string): boolean {
   const norm = normalizeEmail(email);
   const current = getAdFreeEmails();
   const next = current.filter((e) => e !== norm);
   saveAdFreeEmails(next);
 
-  // Sync with server API
+  // 1. Delete from Supabase vip_users table
+  try {
+    supabase
+      .from("vip_users")
+      .delete()
+      .eq("email", norm)
+      .then(({ error }) => {
+        if (error) console.debug("Supabase VIP delete note:", error.message);
+      })
+      .catch(() => {});
+  } catch (e) {
+    console.debug("Supabase delete caught:", e);
+  }
+
+  // 2. Sync with local server API fallback
   if (typeof window !== "undefined") {
     fetch("/api/ad-exemptions", {
       method: "POST",
@@ -149,26 +176,84 @@ export function useAdStatus() {
   });
 
   useEffect(() => {
-    // Initial fetch of exempt emails from central server
+    // Check for VIP activation link in URL: e.g. ?vip=user@gmail.com
+    if (typeof window !== "undefined") {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const vipParam = params.get("vip") || params.get("activate_vip");
+        if (vipParam) {
+          const normVip = normalizeEmail(vipParam);
+          if (normVip && normVip.includes("@")) {
+            setLocalAuthUser({
+              id: "vip_" + Math.random().toString(36).substring(2, 9),
+              email: normVip,
+              created_at: new Date().toISOString(),
+            });
+            // Clean URL query parameter without page reload
+            const cleanUrl =
+              window.location.pathname + (window.location.hash ? window.location.hash : "");
+            window.history.replaceState({}, "", cleanUrl);
+          }
+        }
+      } catch (err) {
+        console.debug("VIP URL parse error:", err);
+      }
+    }
+
+    const checkActiveUser = (email: string | null, customExempts?: string[]) => {
+      // If no Supabase email, fall back to local stored session
+      const effectiveEmail = email || getLocalAuthUser()?.email || null;
+      setCurrentUserEmail(effectiveEmail);
+      const admin = isAdminEmail(effectiveEmail);
+      setIsAdmin(admin);
+      setIsAdFree(isEmailAdFree(effectiveEmail, customExempts || getAdFreeEmails()));
+    };
+
+    // Initial fetch of exempt emails from Supabase vip_users table
+    const fetchSupabaseVips = async () => {
+      try {
+        const { data, error } = await supabase.from("vip_users").select("email");
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const remoteVips = data
+            .map((item: { email: string }) => normalizeEmail(item.email))
+            .filter(Boolean);
+          const merged = Array.from(new Set([...getAdFreeEmails(), ...remoteVips]));
+          saveAdFreeEmails(merged);
+          setAdFreeEmails(merged);
+          checkActiveUser(null, merged);
+        }
+      } catch (err) {
+        console.debug("Supabase VIP query note:", err);
+      }
+    };
+    fetchSupabaseVips();
+
+    // Realtime sync with Supabase vip_users table
+    let vipChannel: any = null;
+    try {
+      vipChannel = supabase
+        .channel("vip_users_realtime")
+        .on("postgres_changes", { event: "*", schema: "public", table: "vip_users" }, () => {
+          fetchSupabaseVips();
+        })
+        .subscribe();
+    } catch (e) {
+      console.debug("Supabase realtime caught:", e);
+    }
+
+    // Initial fetch of exempt emails from central server fallback
     if (typeof window !== "undefined") {
       fetch("/api/ad-exemptions")
         .then((res) => res.json())
         .then((data) => {
           if (data?.success && Array.isArray(data.exempts)) {
             saveAdFreeEmails(data.exempts);
+            setAdFreeEmails(data.exempts);
+            checkActiveUser(null, data.exempts);
           }
         })
         .catch(() => {});
     }
-
-    const checkActiveUser = (email: string | null) => {
-      // If no Supabase email, fall back to local stored session
-      const effectiveEmail = email || getLocalAuthUser()?.email || null;
-      setCurrentUserEmail(effectiveEmail);
-      const admin = isAdminEmail(effectiveEmail);
-      setIsAdmin(admin);
-      setIsAdFree(isEmailAdFree(effectiveEmail));
-    };
 
     // 1. Initial auth check
     supabase.auth
@@ -209,6 +294,7 @@ export function useAdStatus() {
 
     return () => {
       subscription.unsubscribe();
+      if (vipChannel) supabase.removeChannel(vipChannel);
       window.removeEventListener("local_auth_changed", handleLocalAuthChanged);
       window.removeEventListener("ad_exemptions_changed", handleExemptionsChanged);
     };
@@ -217,7 +303,7 @@ export function useAdStatus() {
   // Recalculate isAdFree whenever currentUserEmail or adFreeEmails changes
   useEffect(() => {
     setIsAdmin(isAdminEmail(currentUserEmail));
-    setIsAdFree(isEmailAdFree(currentUserEmail));
+    setIsAdFree(isEmailAdFree(currentUserEmail, adFreeEmails));
   }, [currentUserEmail, adFreeEmails]);
 
   return {
