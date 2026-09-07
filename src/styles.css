@@ -179,3 +179,25 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #ea580c;
 }
+
+/* Fail-safe VIP / Ad-Free protection: completely eradicate all ad spaces, containers, and borders */
+[data-vip="true"] .ad-container,
+[data-vip="true"] [id^="ad-"],
+body.is-vip .ad-container,
+body.is-vip [id^="ad-"],
+body.is-ad-free .ad-container,
+body.is-ad-free [id^="ad-"],
+html[data-vip="true"] .ad-container,
+html[data-vip="true"] [id^="ad-"] {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+}

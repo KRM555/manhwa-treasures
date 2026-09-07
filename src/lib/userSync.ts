@@ -50,7 +50,17 @@ export function sanitizeWorkspacesForCloudSync(
 ): WorkspaceTab[] | undefined {
   if (!Array.isArray(workspaces)) return workspaces;
   return workspaces.map((tab) => ({
-    ...tab,
+    id: tab.id,
+    name: tab.name,
+    activeImageIndex: tab.activeImageIndex || 0,
+    selectedImageIds: tab.selectedImageIds || [],
+    view: tab.view || "upload",
+    startPageNumber: tab.startPageNumber || 1,
+    useFilenamePageNumber: tab.useFilenamePageNumber !== false,
+    referenceFileName: tab.referenceFileName || "",
+    referenceText: tab.referenceText ? tab.referenceText.slice(0, 50000) : "",
+    resultsMap: tab.resultsMap || {},
+    createdAt: tab.createdAt || Date.now(),
     images: (tab.images || []).map((img) => ({
       id: img.id,
       name: img.name,
@@ -71,30 +81,63 @@ export async function saveUserCloudData(
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes("@")) return false;
 
-  try {
-    const cleanWorkspaces = sanitizeWorkspacesForCloudSync(payload.workspaces);
-    const res = await fetch("/api/user-sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: cleanEmail,
-        settings: payload.settings,
-        workspaces: cleanWorkspaces,
-        activeTabId: payload.activeTabId,
-      }),
-    });
+  const cleanWorkspaces = sanitizeWorkspacesForCloudSync(payload.workspaces);
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      console.error("[UserSync] Server responded with error status:", res.status, errText);
+  // Cap translation memory to 500 entries to prevent oversized payloads
+  const sanitizedSettings = payload.settings
+    ? {
+        ...payload.settings,
+        translationMemory: payload.settings.translationMemory?.slice(0, 500),
+      }
+    : undefined;
+
+  const bodyData = JSON.stringify({
+    email: cleanEmail,
+    settings: sanitizedSettings,
+    workspaces: cleanWorkspaces,
+    activeTabId: payload.activeTabId,
+  });
+
+  const sendRequest = async (): Promise<boolean> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+    try {
+      const res = await fetch("/api/user-sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: bodyData,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        console.error("[UserSync] Server responded with error status:", res.status, errText);
+        return false;
+      }
+      const json = await res.json();
+      return Boolean(json.success);
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      console.warn("[UserSync] Attempt error:", err?.message || err);
       return false;
     }
-    const json = await res.json();
-    return Boolean(json.success);
-  } catch (err) {
-    console.error("[UserSync] Failed to save cloud data:", err);
-    return false;
+  };
+
+  // First attempt
+  let success = await sendRequest();
+  if (!success) {
+    // Retry once after 600ms in case of network blip
+    await new Promise((r) => setTimeout(r, 600));
+    success = await sendRequest();
   }
+
+  return success;
 }
 
 export function applyCloudDataToLocalStorage(cloudData: UserCloudData): void {

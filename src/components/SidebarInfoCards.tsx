@@ -2,10 +2,12 @@ import React from "react";
 import { HelpCircle, ExternalLink, Key, Upload, FileText, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n } from "@/lib/language";
+import { useAdStatus } from "@/lib/adManager";
 import { AdSlot } from "@/components/AdSlot";
 
 export const SidebarInfoCards: React.FC = () => {
   const { t } = useI18n();
+  const { isVip, isAdFree } = useAdStatus();
 
   const steps = [
     { num: 1, title: t.step1Title, desc: t.step1Desc, icon: Key },
@@ -82,8 +84,8 @@ export const SidebarInfoCards: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Ad Space in Sidebar */}
-      <AdSlot id="ad-home-sidebar" format="rectangle" />
+      {/* Ad Space in Sidebar - completely omitted for VIP/Ad-free */}
+      {!isVip && !isAdFree && <AdSlot id="ad-home-sidebar" format="rectangle" />}
     </div>
   );
 };

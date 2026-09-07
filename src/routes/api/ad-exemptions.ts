@@ -35,12 +35,24 @@ function writeServerExempts(emails: string[]): void {
   }
 }
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+};
+
 export const Route = createFileRoute("/api/ad-exemptions")({
   server: {
     handlers: {
+      OPTIONS: async () => {
+        return new Response(null, {
+          status: 204,
+          headers: CORS_HEADERS,
+        });
+      },
       GET: async () => {
         const exempts = readServerExempts();
-        return Response.json({ success: true, exempts });
+        return Response.json({ success: true, exempts }, { headers: CORS_HEADERS });
       },
       POST: async ({ request }) => {
         try {
@@ -49,7 +61,10 @@ export const Route = createFileRoute("/api/ad-exemptions")({
           const action = body?.action || "add";
 
           if (!target || !target.includes("@")) {
-            return Response.json({ success: false, error: "Invalid email" }, { status: 400 });
+            return Response.json(
+              { success: false, error: "Invalid email" },
+              { status: 400, headers: CORS_HEADERS },
+            );
           }
 
           const current = readServerExempts();
@@ -62,11 +77,11 @@ export const Route = createFileRoute("/api/ad-exemptions")({
           }
 
           writeServerExempts(updated);
-          return Response.json({ success: true, exempts: updated });
+          return Response.json({ success: true, exempts: updated }, { headers: CORS_HEADERS });
         } catch (e: any) {
           return Response.json(
             { success: false, error: e?.message || "Server error" },
-            { status: 500 },
+            { status: 500, headers: CORS_HEADERS },
           );
         }
       },

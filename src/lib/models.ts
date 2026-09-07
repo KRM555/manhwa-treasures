@@ -66,7 +66,12 @@ export const MODEL_FALLBACK_MAP: Record<string, string[]> = {
 export function doesModelSupportThinking(modelId: string): boolean {
   if (!modelId) return false;
   const clean = modelId.toLowerCase();
-  return clean.includes("3.7") || clean.includes("3.8") || clean.includes("3.1-pro");
+  return (
+    clean.includes("3.6") ||
+    clean.includes("3.7") ||
+    clean.includes("3.8") ||
+    clean.includes("3.1-pro")
+  );
 }
 
 /**

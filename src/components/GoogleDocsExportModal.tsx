@@ -59,6 +59,7 @@ export const GoogleDocsExportModal: React.FC<GoogleDocsExportModalProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [googleDocsUrl, setGoogleDocsUrl] = useState<string | null>(null);
   const [fileDownloadUrl, setFileDownloadUrl] = useState<string | null>(null);
+  const [htmlViewerUrl, setHtmlViewerUrl] = useState<string | null>(null);
   const [docId, setDocId] = useState<string | null>(null);
 
   const authorEmail = currentUserEmail || "مترجم المانهوا";
@@ -147,7 +148,9 @@ export const GoogleDocsExportModal: React.FC<GoogleDocsExportModalProps> = ({
 
       // Create DOCX binary for Google Docs Viewer
       const docPages = images.map((img) => ({
+        id: img.id,
         fileName: img.name,
+        items: resultsMap[img.id] || [],
         bubbles: resultsMap[img.id] || [],
       }));
 
@@ -159,18 +162,18 @@ export const GoogleDocsExportModal: React.FC<GoogleDocsExportModalProps> = ({
         textType: "translated",
       });
 
-      const docxBlob = await Packer.toBlob(doc);
-      const arrayBuffer = await docxBlob.arrayBuffer();
-      const docxBase64 = btoa(
-        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ""),
-      );
-
-      const generatedId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      // Built-in native base64 conversion without manual buffer iteration
+      const docxBase64 = await Packer.toBase64String(doc);
+      const generatedId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const clientOrigin = typeof window !== "undefined" ? window.location.origin : "";
 
       // Post to backend API
       const res = await fetch("/api/docs-export", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({
           docId: generatedId,
           title: `ترجمة فصول المانهوا - ${images.length} صفحة`,
@@ -178,17 +181,20 @@ export const GoogleDocsExportModal: React.FC<GoogleDocsExportModalProps> = ({
           text,
           html,
           docxBase64,
+          clientOrigin,
         }),
       });
 
       if (!res.ok) {
-        throw new Error("Failed to create document on server");
+        const errText = await res.text().catch(() => "");
+        throw new Error(`Server returned ${res.status}: ${errText}`);
       }
 
       const data = await res.json();
       setDocId(data.docId);
       setGoogleDocsUrl(data.googleDocsUrl);
       setFileDownloadUrl(data.fileUrl);
+      setHtmlViewerUrl(data.htmlViewerUrl);
 
       toast.success(
         lang === "ar"
@@ -197,10 +203,31 @@ export const GoogleDocsExportModal: React.FC<GoogleDocsExportModalProps> = ({
       );
     } catch (err: any) {
       console.error("Error creating Google Docs link:", err);
+      // Fallback: create local docx blob URL directly so user is never blocked
+      try {
+        const docPages = images.map((img) => ({
+          id: img.id,
+          fileName: img.name,
+          items: resultsMap[img.id] || [],
+          bubbles: resultsMap[img.id] || [],
+        }));
+        const doc = createChapterDocxDocument(docPages, true, {
+          startPageNumber,
+          useFilenamePageNumber,
+          tags,
+          tagsEnabled,
+          textType: "translated",
+        });
+        const blob = await Packer.toBlob(doc);
+        const localBlobUrl = URL.createObjectURL(blob);
+        setFileDownloadUrl(localBlobUrl);
+      } catch (blobErr) {
+        console.debug("Local blob creation note:", blobErr);
+      }
       toast.error(
         lang === "ar"
-          ? "تعذر توليد رابط Google Docs، يرجى المحاولة مرة أخرى"
-          : "Failed to generate Google Docs link",
+          ? "تعذر توليد رابط السحابة حالياً، يمكنك استخدام خيار فتح docs.new أو تحميل ملف Word مباشرة."
+          : "Could not generate cloud link. docs.new and Word download are ready!",
       );
     } finally {
       setIsGenerating(false);
@@ -483,6 +510,39 @@ export const GoogleDocsExportModal: React.FC<GoogleDocsExportModalProps> = ({
                         : "Copy Formatted Text"}
                   </span>
                 </Button>
+
+                {/* 3. HTML Web View */}
+                {htmlViewerUrl && (
+                  <Button
+                    variant="outline"
+                    onClick={() => window.open(htmlViewerUrl, "_blank")}
+                    className="h-12 flex items-center justify-center gap-2 rounded-xl border-border hover:bg-muted text-xs font-semibold"
+                  >
+                    <FileText className="w-4 h-4 text-emerald-500" />
+                    <span>
+                      {lang === "ar" ? "معاينة كصفحة ويب / طباعة PDF" : "Web Preview / Print PDF"}
+                    </span>
+                  </Button>
+                )}
+
+                {/* 4. Download DOCX */}
+                {fileDownloadUrl && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const a = document.createElement("a");
+                      a.href = fileDownloadUrl;
+                      a.download = `manga_translation_${docId || "doc"}.docx`;
+                      a.click();
+                    }}
+                    className="h-12 flex items-center justify-center gap-2 rounded-xl border-border hover:bg-muted text-xs font-semibold"
+                  >
+                    <Download className="w-4 h-4 text-amber-500" />
+                    <span>
+                      {lang === "ar" ? "تحميل ملف Word (.docx)" : "Download Word (.docx)"}
+                    </span>
+                  </Button>
+                )}
               </div>
 
               {/* Preview */}

@@ -1047,6 +1047,25 @@ export default function Index() {
     }
     setIsSyncingCloud(true);
     try {
+      // Ensure the active tab contains the most recent memory values
+      const currentWorkspaces = workspaces.map((w) => {
+        if (w.id === activeTabId) {
+          return {
+            ...w,
+            images,
+            activeImageIndex,
+            resultsMap,
+            selectedImageIds,
+            view,
+            startPageNumber,
+            useFilenamePageNumber,
+            referenceText,
+            referenceFileName,
+          };
+        }
+        return w;
+      });
+
       const success = await saveUserCloudData(currentUserEmail, {
         settings: {
           tags,
@@ -1060,7 +1079,7 @@ export default function Index() {
           startPageNumber,
           useFilenamePageNumber,
         },
-        workspaces,
+        workspaces: currentWorkspaces,
         activeTabId,
       });
       if (success) {
@@ -1070,8 +1089,19 @@ export default function Index() {
             : "All settings and workspaces synced to cloud successfully! ☁️",
         );
       } else {
-        toast.error(lang === "ar" ? "تعذر الاتصال بالسيرفر للمزامنة" : "Cloud sync failed");
+        toast.error(
+          lang === "ar"
+            ? "تعذر الاتصال بالسيرفر للمزامنة. تم حفظ التغييرات محلياً بأمان وسنعيد المحاولة تلقائياً."
+            : "Could not reach sync server. Saved locally and will retry.",
+        );
       }
+    } catch (err: any) {
+      console.error("Cloud sync exception:", err);
+      toast.error(
+        lang === "ar"
+          ? "تعذر الاتصال بالسيرفر للمزامنة. تم حفظ التغييرات محلياً بأمان."
+          : "Sync error. Changes safely preserved locally.",
+      );
     } finally {
       setIsSyncingCloud(false);
     }
@@ -2746,8 +2776,8 @@ ST: همس`}
             </div>
           </div>
 
-          {/* Ad Space directly under the pages bar as requested */}
-          <AdSlot id="ad-under-pages-toolbar" format="leaderboard" />
+          {/* Ad Space directly under the pages bar as requested (Hidden for VIP/Ad-free) */}
+          {!isVip && !isAdFree && <AdSlot id="ad-under-pages-toolbar" format="leaderboard" />}
         </div>
       )}
 
@@ -2808,7 +2838,13 @@ ST: همس`}
                       <p className="text-[10px] text-muted-foreground text-center">
                         {t.analysisWaitNote}
                       </p>
-                      <AdSlot id="ad-processing-loader" format="compact" className="w-full mt-1" />
+                      {!isVip && !isAdFree && (
+                        <AdSlot
+                          id="ad-processing-loader"
+                          format="compact"
+                          className="w-full mt-1"
+                        />
+                      )}
                     </div>
                   ) : (
                     <div className="flex flex-wrap justify-center gap-3 w-full animate-in fade-in zoom-in">
@@ -3646,10 +3682,12 @@ ST: همس`}
                 </Card>
               ))}
 
-              {/* Optional slim ad at end of bubbles list */}
-              <div className="pt-2 pb-1">
-                <AdSlot id="ad-editor-bubbles-bottom" format="compact" />
-              </div>
+              {/* Optional slim ad at end of bubbles list (Completely omitted for VIP/Ad-free) */}
+              {!isVip && !isAdFree && (
+                <div className="pt-2 pb-1">
+                  <AdSlot id="ad-editor-bubbles-bottom" format="compact" />
+                </div>
+              )}
             </div>
           </div>
         </div>

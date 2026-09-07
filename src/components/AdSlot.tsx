@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Megaphone, Sparkles } from "lucide-react";
 import { useI18n } from "@/lib/language";
-import { useAdStatus } from "@/lib/adManager";
+import { useAdStatus, checkIsVipSync } from "@/lib/adManager";
 
 export interface AdSlotProps {
   id?: string;
@@ -27,22 +27,31 @@ export const AdSlot: React.FC<AdSlotProps> = ({
   label,
 }) => {
   const { t } = useI18n();
-  const { isAdFree } = useAdStatus();
+  const { isAdFree, isVip } = useAdStatus();
   const adRef = useRef<HTMLModElement | null>(null);
   const isAdsenseConfigured = Boolean(adClient && slotId);
 
+  // Synchronous and reactive check for VIP / Ad-free state
+  const isUserVipOrAdFree =
+    isAdFree ||
+    isVip ||
+    checkIsVipSync() ||
+    (typeof window !== "undefined" &&
+      (localStorage.getItem("manga_vip_activated") === "true" ||
+        document.documentElement.getAttribute("data-vip") === "true"));
+
   useEffect(() => {
-    if (!isAdFree && isAdsenseConfigured && typeof window !== "undefined") {
+    if (!isUserVipOrAdFree && isAdsenseConfigured && typeof window !== "undefined") {
       try {
         (window.adsbygoogle = window.adsbygoogle || []).push({});
       } catch (e) {
         console.debug("AdSense push error or adblock detected:", e);
       }
     }
-  }, [isAdFree, isAdsenseConfigured]);
+  }, [isUserVipOrAdFree, isAdsenseConfigured]);
 
-  // If user is ad-free (VIP / exempt / admin), render nothing at all!
-  if (isAdFree) {
+  // If user is VIP / exempt / ad-free / admin, render absolutely nothing!
+  if (isUserVipOrAdFree) {
     return null;
   }
 

@@ -14,9 +14,21 @@ function sanitizeId(id: string): string {
   return id.replace(/[^a-zA-Z0-9_-]/g, "");
 }
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+};
+
 export const Route = createFileRoute("/api/docs-export")({
   server: {
     handlers: {
+      OPTIONS: async () => {
+        return new Response(null, {
+          status: 204,
+          headers: CORS_HEADERS,
+        });
+      },
       GET: async ({ request }) => {
         try {
           const url = new URL(request.url);
@@ -26,7 +38,7 @@ export const Route = createFileRoute("/api/docs-export")({
           if (!rawId) {
             return new Response(JSON.stringify({ error: "Missing document ID" }), {
               status: 400,
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS },
             });
           }
 
@@ -39,7 +51,7 @@ export const Route = createFileRoute("/api/docs-export")({
               `<!DOCTYPE html><html dir="rtl"><body style="font-family:sans-serif;text-align:center;padding:50px;"><h2>المستند غير موجود أو انتهت صلاحيته</h2></body></html>`,
               {
                 status: 404,
-                headers: { "Content-Type": "text/html; charset=utf-8" },
+                headers: { "Content-Type": "text/html; charset=utf-8", ...CORS_HEADERS },
               },
             );
           }
@@ -53,8 +65,8 @@ export const Route = createFileRoute("/api/docs-export")({
                 "Content-Type":
                   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 "Content-Disposition": `inline; filename="manga_translation_${docId}.docx"`,
-                "Access-Control-Allow-Origin": "*",
                 "Cache-Control": "public, max-age=86400",
+                ...CORS_HEADERS,
               },
             });
           }
@@ -68,7 +80,7 @@ export const Route = createFileRoute("/api/docs-export")({
           if (url.searchParams.get("json") === "1") {
             return new Response(JSON.stringify(docData), {
               status: 200,
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS },
             });
           }
 
@@ -113,7 +125,10 @@ export const Route = createFileRoute("/api/docs-export")({
 <body>
   <div class="no-print" style="max-width:820px;width:100%;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
     <div style="font-weight:bold;font-size:14px;color:#475569;">📄 ${docData.title || "ترجمة المانهوا"} (${docData.author || "مترجم"})</div>
-    <button onclick="window.print()" style="padding:6px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;font-size:13px;">طباعة / حفظ PDF</button>
+    <div style="display:flex;gap:8px;">
+      <a href="/api/docs-export?id=${docId}&format=docx" download="manga_translation_${docId}.docx" style="padding:6px 14px;background:#e2e8f0;color:#1e293b;border:none;border-radius:6px;cursor:pointer;font-weight:bold;font-size:13px;text-decoration:none;">تحميل Word (.docx)</a>
+      <button onclick="window.print()" style="padding:6px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;font-size:13px;">طباعة / حفظ PDF</button>
+    </div>
   </div>
   <div class="doc-page">
     ${htmlContent}
@@ -125,14 +140,14 @@ export const Route = createFileRoute("/api/docs-export")({
             status: 200,
             headers: {
               "Content-Type": "text/html; charset=utf-8",
-              "Access-Control-Allow-Origin": "*",
+              ...CORS_HEADERS,
             },
           });
         } catch (err: any) {
           console.error("Error serving exported doc:", err);
           return new Response(JSON.stringify({ error: err?.message || "Server error" }), {
             status: 500,
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...CORS_HEADERS },
           });
         }
       },
@@ -147,6 +162,7 @@ export const Route = createFileRoute("/api/docs-export")({
             text?: string;
             html?: string;
             docxBase64?: string;
+            clientOrigin?: string;
           };
 
           const docId = sanitizeId(
@@ -185,7 +201,12 @@ export const Route = createFileRoute("/api/docs-export")({
             request.headers.get("x-forwarded-host") || request.headers.get("host") || reqUrl.host;
           const proto =
             request.headers.get("x-forwarded-proto") || reqUrl.protocol.replace(":", "") || "https";
-          const origin = `${proto}://${host}`;
+
+          const rawOrigin = `${proto}://${host}`;
+          const origin =
+            body.clientOrigin && body.clientOrigin.startsWith("http")
+              ? body.clientOrigin
+              : rawOrigin;
 
           const fileUrl = `${origin}/api/docs-export?id=${docId}&format=docx`;
           const googleDocsUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(fileUrl)}&embedded=false`;
@@ -201,14 +222,14 @@ export const Route = createFileRoute("/api/docs-export")({
             }),
             {
               status: 200,
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS },
             },
           );
         } catch (err: any) {
           console.error("Error creating exported doc:", err);
           return new Response(JSON.stringify({ error: err?.message || "Server error" }), {
             status: 500,
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...CORS_HEADERS },
           });
         }
       },

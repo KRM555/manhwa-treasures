@@ -15,9 +15,21 @@ function ensureDirectoryExists(): void {
   }
 }
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+};
+
 export const Route = createFileRoute("/api/user-sync")({
   server: {
     handlers: {
+      OPTIONS: async () => {
+        return new Response(null, {
+          status: 204,
+          headers: CORS_HEADERS,
+        });
+      },
       GET: async ({ request }) => {
         try {
           const url = new URL(request.url);
@@ -26,7 +38,7 @@ export const Route = createFileRoute("/api/user-sync")({
           if (!email || !email.includes("@")) {
             return Response.json(
               { success: false, error: "Invalid or missing email" },
-              { status: 400 },
+              { status: 400, headers: CORS_HEADERS },
             );
           }
 
@@ -34,17 +46,17 @@ export const Route = createFileRoute("/api/user-sync")({
           const filePath = path.join(USER_DATA_DIR, sanitizeEmailFilename(email));
 
           if (!fs.existsSync(filePath)) {
-            return Response.json({ success: true, found: false });
+            return Response.json({ success: true, found: false }, { headers: CORS_HEADERS });
           }
 
           const raw = fs.readFileSync(filePath, "utf-8");
           const data = JSON.parse(raw);
-          return Response.json({ success: true, found: true, data });
+          return Response.json({ success: true, found: true, data }, { headers: CORS_HEADERS });
         } catch (err: any) {
           console.error("Error reading user data:", err);
           return Response.json(
             { success: false, error: err?.message || "Internal server error" },
-            { status: 500 },
+            { status: 500, headers: CORS_HEADERS },
           );
         }
       },
@@ -61,7 +73,7 @@ export const Route = createFileRoute("/api/user-sync")({
           if (!targetEmail || !targetEmail.includes("@")) {
             return Response.json(
               { success: false, error: "Invalid or missing email" },
-              { status: 400 },
+              { status: 400, headers: CORS_HEADERS },
             );
           }
 
@@ -93,12 +105,12 @@ export const Route = createFileRoute("/api/user-sync")({
           };
 
           fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
-          return Response.json({ success: true, updatedAt });
+          return Response.json({ success: true, updatedAt }, { headers: CORS_HEADERS });
         } catch (err: any) {
           console.error("Error saving user data:", err);
           return Response.json(
             { success: false, error: err?.message || "Internal server error" },
-            { status: 500 },
+            { status: 500, headers: CORS_HEADERS },
           );
         }
       },
