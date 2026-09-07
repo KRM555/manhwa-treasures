@@ -11,7 +11,6 @@ import { SplitBubbleModal } from "@/components/SplitBubbleModal";
 import { WorkspaceTabBar } from "@/components/WorkspaceTabBar";
 import { DriveImportModal } from "@/components/DriveImportModal";
 import { NavigationSidebar } from "@/components/NavigationSidebar";
-import { GoogleDocsExportModal } from "@/components/GoogleDocsExportModal";
 import { AIProofreaderModal } from "@/components/AIProofreaderModal";
 import { VipPerksModal } from "@/components/VipPerksModal";
 import { SharedDocumentViewerModal } from "@/components/SharedDocumentViewerModal";
@@ -41,7 +40,6 @@ import { compareImageFilenames, extractPageNumber } from "@/lib/zipUtils";
 import { exportChapterToDocx } from "@/utils/docxExport";
 import { parseTagRulesFromText, exportTagsToText } from "@/lib/tagUtils";
 import { useAdStatus } from "@/lib/adManager";
-import { saveUserCloudData, CLOUD_SYNC_RESTORED_EVENT, UserCloudData } from "@/lib/userSync";
 import { Switch } from "@/components/ui/switch";
 import { GeminiModelMeta, GlossaryItem } from "@/types";
 import { TranslationConfig, MangaPageItem } from "@/types/manga";
@@ -95,7 +93,6 @@ import {
   Square,
   Split,
   CloudDownload,
-  Cloud,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -264,8 +261,6 @@ export default function Index() {
   });
 
   const { currentUserEmail, isVip, isAdFree } = useAdStatus();
-  const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
-  const [showGoogleDocsModal, setShowGoogleDocsModal] = useState<boolean>(false);
   const [showProofreaderModal, setShowProofreaderModal] = useState<boolean>(false);
   const [showVipPerksModal, setShowVipPerksModal] = useState<boolean>(false);
 
@@ -273,16 +268,13 @@ export default function Index() {
   useEffect(() => {
     const handleOpenProofreader = () => setShowProofreaderModal(true);
     const handleOpenVipPerks = () => setShowVipPerksModal(true);
-    const handleOpenGoogleDocs = () => setShowGoogleDocsModal(true);
 
     window.addEventListener("open_proofreader_modal", handleOpenProofreader);
     window.addEventListener("open_vip_perks_modal", handleOpenVipPerks);
-    window.addEventListener("open_googledocs_modal", handleOpenGoogleDocs);
 
     return () => {
       window.removeEventListener("open_proofreader_modal", handleOpenProofreader);
       window.removeEventListener("open_vip_perks_modal", handleOpenVipPerks);
-      window.removeEventListener("open_googledocs_modal", handleOpenGoogleDocs);
     };
   }, []);
 
@@ -439,81 +431,6 @@ export default function Index() {
   useEffect(() => {
     localStorage.setItem("manga_tags_enabled", String(tagsEnabled));
   }, [tagsEnabled]);
-
-  // Listen for Cloud Sync restorations (e.g. on login or multi-device restore)
-  useEffect(() => {
-    const handleCloudSync = (e: Event) => {
-      const customEv = e as CustomEvent<UserCloudData>;
-      const data = customEv.detail;
-      if (!data) return;
-
-      if (data.settings) {
-        if (Array.isArray(data.settings.tags)) setTags(data.settings.tags);
-        if (typeof data.settings.tagsEnabled === "boolean")
-          setTagsEnabled(data.settings.tagsEnabled);
-        if (Array.isArray(data.settings.glossary)) setGlossary(data.settings.glossary);
-        if (data.settings.config) setConfig(data.settings.config);
-        if (data.settings.selectedModel) setSelectedModel(data.settings.selectedModel);
-        if (typeof data.settings.extendedThinking === "boolean")
-          setExtendedThinking(data.settings.extendedThinking);
-        if (data.settings.processingMode) setProcessingMode(data.settings.processingMode as any);
-        if (typeof data.settings.startPageNumber === "number")
-          setStartPageNumber(data.settings.startPageNumber);
-        if (typeof data.settings.useFilenamePageNumber === "boolean")
-          setUseFilenamePageNumber(data.settings.useFilenamePageNumber);
-      }
-      if (Array.isArray(data.workspaces) && data.workspaces.length > 0) {
-        setWorkspaces(data.workspaces);
-        if (data.activeTabId) setActiveTabId(data.activeTabId);
-      }
-    };
-
-    window.addEventListener(CLOUD_SYNC_RESTORED_EVENT, handleCloudSync);
-    return () => {
-      window.removeEventListener(CLOUD_SYNC_RESTORED_EVENT, handleCloudSync);
-    };
-  }, []);
-
-  // Debounced auto-save to cloud account whenever user settings or workspaces change
-  useEffect(() => {
-    if (!currentUserEmail) return;
-
-    const timer = setTimeout(() => {
-      saveUserCloudData(currentUserEmail, {
-        settings: {
-          tags,
-          tagsEnabled,
-          glossary,
-          translationMemory: getTranslationMemory(),
-          config,
-          selectedModel,
-          extendedThinking,
-          processingMode,
-          startPageNumber,
-          useFilenamePageNumber,
-        },
-        workspaces,
-        activeTabId,
-      }).catch((err) => {
-        console.debug("[UserSync] Auto-save error note:", err);
-      });
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [
-    currentUserEmail,
-    tags,
-    tagsEnabled,
-    glossary,
-    config,
-    selectedModel,
-    extendedThinking,
-    processingMode,
-    startPageNumber,
-    useFilenamePageNumber,
-    workspaces,
-    activeTabId,
-  ]);
 
   useEffect(() => {
     localStorage.setItem("manga_glossary", JSON.stringify(glossary));
@@ -1036,74 +953,73 @@ export default function Index() {
     return formatTextWithRules(text, categoryVal, tags, tagsEnabled);
   };
 
-  const handleManualCloudSync = async () => {
-    if (!currentUserEmail) {
-      toast.info(
+  const handleCopyAllChapterFormattedText = async () => {
+    if (images.length === 0) {
+      toast.warning(
         lang === "ar"
-          ? "يرجى تسجيل الدخول أولاً لتفعيل المزامنة السحابية وحفظ إعداداتك ومساحة عملك."
-          : "Please sign in first to enable cloud sync.",
+          ? "يرجى رفع صور وتوليد الترجمة أولاً لنسخ النص"
+          : "Please upload images and translate text first",
       );
       return;
     }
-    setIsSyncingCloud(true);
-    try {
-      // Ensure the active tab contains the most recent memory values
-      const currentWorkspaces = workspaces.map((w) => {
-        if (w.id === activeTabId) {
-          return {
-            ...w,
-            images,
-            activeImageIndex,
-            resultsMap,
-            selectedImageIds,
-            view,
-            startPageNumber,
-            useFilenamePageNumber,
-            referenceText,
-            referenceFileName,
-          };
+
+    let fullFormatted = "";
+    let totalBubbles = 0;
+
+    images.forEach((img, idx) => {
+      const bubbles = resultsMap[img.id] || [];
+      if (bubbles.length === 0) return;
+      totalBubbles += bubbles.length;
+
+      const detectedPageNum = extractPageNumber(img.name);
+      const pageNum =
+        useFilenamePageNumber && detectedPageNum !== null
+          ? detectedPageNum
+          : idx + startPageNumber;
+
+      fullFormatted += `📄 [${lang === "ar" ? "الصفحة" : "Page"} ${pageNum}] - ${img.name}\n`;
+      fullFormatted += `----------------------------------------------------\n`;
+
+      bubbles.forEach((item) => {
+        const line = formatItemText(item.translatedText, item.category);
+        if (line.trim()) {
+          fullFormatted += `${line}\n`;
         }
-        return w;
       });
 
-      const success = await saveUserCloudData(currentUserEmail, {
-        settings: {
-          tags,
-          tagsEnabled,
-          glossary,
-          translationMemory: getTranslationMemory(),
-          config,
-          selectedModel,
-          extendedThinking,
-          processingMode,
-          startPageNumber,
-          useFilenamePageNumber,
-        },
-        workspaces: currentWorkspaces,
-        activeTabId,
-      });
-      if (success) {
-        toast.success(
-          lang === "ar"
-            ? "تمت مزامنة وحفظ جميع إعداداتك ومساحات عملك سحابياً بنجاح! ☁️"
-            : "All settings and workspaces synced to cloud successfully! ☁️",
-        );
-      } else {
-        toast.error(
-          lang === "ar"
-            ? "تعذر الاتصال بالسيرفر للمزامنة. تم حفظ التغييرات محلياً بأمان وسنعيد المحاولة تلقائياً."
-            : "Could not reach sync server. Saved locally and will retry.",
-        );
-      }
-    } catch (err: any) {
-      console.error("Cloud sync exception:", err);
-      toast.error(
+      fullFormatted += `\n`;
+    });
+
+    if (totalBubbles === 0 || !fullFormatted.trim()) {
+      toast.warning(
         lang === "ar"
-          ? "تعذر الاتصال بالسيرفر للمزامنة. تم حفظ التغييرات محلياً بأمان."
-          : "Sync error. Changes safely preserved locally.",
+          ? "لا توجد فقرات مترجمة في هذا الفصل لنسخها"
+          : "No translated text found in this chapter",
       );
-    } finally {
-      setIsSyncingCloud(false);
+      return;
+    }
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(fullFormatted.trim());
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = fullFormatted.trim();
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+
+      toast.success(
+        lang === "ar"
+          ? "تم نسخ نصوص الترجمة المنسقة بنجاح! يمكنك لصقها مباشرة في مستند Google Docs (Ctrl+V) 📋"
+          : "Formatted translation text copied! Ready to paste into Google Docs (Ctrl+V) 📋",
+      );
+    } catch {
+      toast.error(
+        lang === "ar" ? "تعذر نسخ النص للحافظة" : "Failed to copy text to clipboard",
+      );
     }
   };
 
@@ -2017,62 +1933,10 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
             brandName={BRAND_NAME}
             tagsEnabled={tagsEnabled}
             onToggleTagsEnabled={setTagsEnabled}
-            onManualSync={handleManualCloudSync}
-            isSyncing={isSyncingCloud}
           />
 
           {/* زر تسجيل الدخول والبروفايل */}
           <AuthModal />
-
-          {/* زر المزامنة السحابية السريع والمباشر في الشريط العلوي */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (!currentUserEmail) {
-                window.dispatchEvent(new CustomEvent("open_auth_modal"));
-                toast.info(
-                  lang === "ar"
-                    ? "يرجى تسجيل الدخول أولاً لحفظ واسترجاع إعداداتك ومشاريعك سحابياً ☁️"
-                    : "Please sign in first to sync settings to the cloud ☁️",
-                );
-              } else {
-                handleManualCloudSync();
-              }
-            }}
-            disabled={isSyncingCloud}
-            className={`h-9 px-2.5 gap-1.5 text-xs font-bold rounded-xl border transition-all ${
-              currentUserEmail
-                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 shadow-xs"
-                : "border-border/60 hover:bg-muted text-muted-foreground"
-            }`}
-            title={
-              currentUserEmail
-                ? lang === "ar"
-                  ? `مزامنة الإعدادات السحابية الآن (${currentUserEmail})`
-                  : `Sync with cloud now (${currentUserEmail})`
-                : lang === "ar"
-                  ? "تسجيل الدخول لتفعيل المزامنة السحابية"
-                  : "Sign in to enable cloud sync"
-            }
-          >
-            {isSyncingCloud ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-500" />
-            ) : (
-              <Cloud
-                className={`w-3.5 h-3.5 ${currentUserEmail ? "text-emerald-500" : "text-muted-foreground"}`}
-              />
-            )}
-            <span className="hidden sm:inline">
-              {isSyncingCloud
-                ? lang === "ar"
-                  ? "جاري المزامنة..."
-                  : "Syncing..."
-                : lang === "ar"
-                  ? "مزامنة سحابية"
-                  : "Cloud Sync"}
-            </span>
-          </Button>
 
           {/* اختيار النموذج (Model Selector) */}
           <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl px-2 h-9">
@@ -2934,18 +2798,37 @@ ST: همس`}
                 </span>
               </Button>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowGoogleDocsModal(true)}
-                className="h-8 text-xs font-bold gap-1.5 rounded-xl border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 shadow-xs"
-                title={lang === "ar" ? "مستند Google Docs ورابط سحابي" : "Google Docs & Cloud Link"}
+              {/* زر موقع Google Docs المباشر (مثل زر ديسكورد) */}
+              <a
+                href="https://docs.new"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center h-8 px-2.5 text-xs font-bold gap-1.5 rounded-xl border border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 transition-colors shadow-xs"
+                title={
+                  lang === "ar"
+                    ? "فتح مستند جديد في Google Docs مباشرة (docs.new)"
+                    : "Open new Google Doc directly (docs.new)"
+                }
               >
                 <FileText className="w-3.5 h-3.5 text-blue-500" />
                 <span>Google Docs</span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-600 text-white font-bold">
-                  VIP 👑
-                </span>
+                <ExternalLink className="w-3 h-3 opacity-60" />
+              </a>
+
+              {/* زر نسخ نصوص الترجمة المنسقة بالكامل بجانبه */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyAllChapterFormattedText}
+                className="h-8 px-2.5 text-xs font-bold gap-1.5 rounded-xl border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition-colors shadow-xs"
+                title={
+                  lang === "ar"
+                    ? "نسخ نصوص الترجمة المنسقة للفصل كاملة للصقها في Google Docs"
+                    : "Copy all formatted translation text for Google Docs"
+                }
+              >
+                <Copy className="w-3.5 h-3.5 text-emerald-500" />
+                <span>{lang === "ar" ? "نسخ النص" : "Copy Text"}</span>
               </Button>
             </div>
 
@@ -3078,20 +2961,23 @@ ST: همس`}
                   </DropdownMenuItem>
                   <div className="h-[1px] bg-border/60 my-1"></div>
                   <DropdownMenuItem
-                    onClick={() => setShowGoogleDocsModal(true)}
+                    onClick={() => window.open("https://docs.new", "_blank")}
                     className="text-xs cursor-pointer font-bold text-blue-600 dark:text-blue-400 flex items-center justify-between"
                   >
                     <div className="flex items-center gap-1.5">
                       <FileText className="w-3.5 h-3.5" />
-                      <span>
-                        {lang === "ar"
-                          ? "تصدير Google Docs ومشاركة الرابط"
-                          : "Google Docs & Direct Link"}
-                      </span>
+                      <span>{lang === "ar" ? "فتح موقع Google Docs" : "Open Google Docs"}</span>
                     </div>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-600 text-white font-bold">
-                      VIP 👑
-                    </span>
+                    <ExternalLink className="w-3 h-3 opacity-60" />
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={handleCopyAllChapterFormattedText}
+                    className="text-xs cursor-pointer font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>{lang === "ar" ? "نسخ نصوص الفصل كاملة" : "Copy All Chapter Text"}</span>
+                    </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -3737,20 +3623,6 @@ ST: همس`}
         open={showDriveModal}
         onOpenChange={setShowDriveModal}
         onImagesImported={handleDriveImagesImported}
-      />
-
-      {/* Google Docs Export Modal with user email & cloud link */}
-      <GoogleDocsExportModal
-        open={showGoogleDocsModal}
-        onOpenChange={setShowGoogleDocsModal}
-        isVip={isVip}
-        currentUserEmail={currentUserEmail}
-        images={images as any}
-        resultsMap={resultsMap as any}
-        tags={tags}
-        tagsEnabled={tagsEnabled}
-        startPageNumber={startPageNumber}
-        useFilenamePageNumber={useFilenamePageNumber}
       />
 
       {/* AI Literary Proofreader Modal */}
