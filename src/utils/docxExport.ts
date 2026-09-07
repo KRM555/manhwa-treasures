@@ -7,6 +7,7 @@ export interface DocxExportOptions {
   startPageNumber?: number;
   useFilenamePageNumber?: boolean;
   tags?: TagRule[];
+  tagsEnabled?: boolean;
   textType?: "original" | "translated";
   extractSFX?: boolean;
 }
@@ -109,7 +110,12 @@ export function createChapterDocxDocument(
         return;
       }
       const rawText = options?.textType === "original" ? item.originalText : item.translatedText;
-      const formattedText = formatTextWithRules(rawText, item.category, options?.tags || []);
+      const formattedText = formatTextWithRules(
+        rawText,
+        item.category,
+        options?.tags || [],
+        options?.tagsEnabled !== false,
+      );
       if (!formattedText.trim()) return;
 
       docChildren.push(

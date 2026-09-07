@@ -34,8 +34,12 @@ import {
   Lock,
   Globe,
   FileSpreadsheet,
+  Users,
+  Crown,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAdStatus } from "@/lib/adManager";
 
 interface AdvancedGlossaryModalProps {
   open: boolean;
@@ -51,7 +55,9 @@ export const AdvancedGlossaryModal: React.FC<AdvancedGlossaryModalProps> = ({
   onUpdateGlossary,
 }) => {
   const { lang } = useI18n();
+  const { isVip } = useAdStatus();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [sharing, setSharing] = useState(false);
 
   // Form State
   const [origTerm, setOrigTerm] = useState("");
@@ -168,6 +174,39 @@ export const AdvancedGlossaryModal: React.FC<AdvancedGlossaryModalProps> = ({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const handleShareTeamGlossary = async () => {
+    if (!isVip) {
+      toast.error(
+        lang === "ar"
+          ? "مشاركة القاموس السحابي للفرق ميزة حصرية لأعضاء VIP 👑"
+          : "Team Shared Glossary is an exclusive VIP perk 👑",
+      );
+      return;
+    }
+    if (glossary.length === 0) {
+      toast.error(lang === "ar" ? "القاموس فارغ حالياً" : "Glossary is empty");
+      return;
+    }
+
+    setSharing(true);
+    try {
+      // Save/Encode glossary in URL parameter or local storage
+      const encoded = encodeURIComponent(JSON.stringify(glossary));
+      const shareUrl = `${window.location.origin}?team_glossary=${encoded}`;
+
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success(
+        lang === "ar"
+          ? `تم نسخ رابط مشاركة قاموس الفريق (${glossary.length} مصطلح)! أرسله لأعضاء الفريق لاستيراده فوراً 👥`
+          : `Copied team glossary link (${glossary.length} terms)! 👥`,
+      );
+    } catch {
+      toast.error(lang === "ar" ? "فشل نسخ الرابط" : "Failed to copy link");
+    } finally {
+      setSharing(false);
+    }
+  };
+
   // Filtered glossary items
   const filteredItems = glossary.filter((item) => {
     const matchesSearch =
@@ -204,6 +243,21 @@ export const AdvancedGlossaryModal: React.FC<AdvancedGlossaryModalProps> = ({
               >
                 <Upload className="w-3.5 h-3.5" />
                 <span>{lang === "ar" ? "استيراد CSV" : "Import CSV"}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleShareTeamGlossary}
+                disabled={sharing}
+                className="h-8 text-xs font-bold gap-1.5 rounded-xl border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 shadow-xs"
+                title={
+                  lang === "ar"
+                    ? "مشاركة هذا القاموس مع فريق المترجمين والمبيضين (VIP)"
+                    : "Share this glossary with your team (VIP)"
+                }
+              >
+                <Users className="w-3.5 h-3.5 text-amber-500" />
+                <span>{lang === "ar" ? "مشاركة الفريق (VIP)" : "Team Share (VIP)"}</span>
               </Button>
               <Button
                 variant="outline"

@@ -4,8 +4,9 @@ export const DEFAULT_GEMINI_MODELS: GeminiModelMeta[] = [
   {
     id: "gemini-3.1-pro-preview",
     label: "Gemini 3.1 Pro",
-    badge: "preview",
-    description: "الأعلى ذكاءً وسياقاً للترجمة المعقدة والأدبية",
+    badge: "vip",
+    isVipOnly: true,
+    description: "الأعلى ذكاءً وسياقاً للترجمة المعقدة والأدبية (حصري VIP 👑)",
   },
   {
     id: "gemini-3.8-flash",
@@ -40,8 +41,9 @@ export const DEFAULT_GEMINI_MODELS: GeminiModelMeta[] = [
   {
     id: "gemini-2.5-pro",
     label: "Gemini 2.5 Pro",
-    badge: "stable",
-    description: "نموذج مستقر للاستدلال والترجمة",
+    badge: "vip",
+    isVipOnly: true,
+    description: "نموذج مستقر للاستدلال والترجمة (حصري VIP 👑)",
   },
 ];
 

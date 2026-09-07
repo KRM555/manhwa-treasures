@@ -23,6 +23,8 @@ import {
   Crown,
   CheckCircle2,
   Copy,
+  Cloud,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/language";
@@ -35,6 +37,7 @@ import {
   PRIMARY_ADMIN_EMAIL,
   normalizeEmail,
 } from "@/lib/adManager";
+import { syncUserOnLogin, collectCurrentLocalData, saveUserCloudData } from "@/lib/userSync";
 
 interface HistoryItem {
   id: string;
@@ -60,6 +63,30 @@ export function AuthModal() {
   const [newAdFreeEmail, setNewAdFreeEmail] = useState("");
   const [addingEmail, setAddingEmail] = useState(false);
   const [removingEmail, setRemovingEmail] = useState<string | null>(null);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+
+  const handleManualCloudSync = async () => {
+    const effectiveEmail = user?.email || currentUserEmail;
+    if (!effectiveEmail) return;
+    setIsSyncingCloud(true);
+    try {
+      const data = collectCurrentLocalData();
+      const ok = await saveUserCloudData(effectiveEmail, data);
+      if (ok) {
+        toast.success(
+          lang === "ar"
+            ? "تم حفظ ومزامنة جميع الإعدادات والقواميس والعلامات سحابياً بنجاح! ☁️"
+            : "Cloud settings and glossaries synced successfully! ☁️",
+        );
+      } else {
+        toast.error(lang === "ar" ? "تعذر المزامنة السحابية حالياً" : "Cloud sync failed");
+      }
+    } catch {
+      toast.error(lang === "ar" ? "حدث خطأ أثناء المزامنة السحابية" : "Cloud sync error");
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
 
   const handleAddAdFreeEmail = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -102,6 +129,24 @@ export function AuthModal() {
     }
   };
 
+  const triggerCloudRestore = useCallback(
+    async (email: string) => {
+      try {
+        const res = await syncUserOnLogin(email);
+        if (res.restored) {
+          toast.success(
+            lang === "ar"
+              ? "تمت استعادة إعداداتك ومساحة عملك السحابية بنجاح! ☁️"
+              : "Cloud settings and workspaces restored! ☁️",
+          );
+        }
+      } catch (e) {
+        console.debug("Cloud restore note:", e);
+      }
+    },
+    [lang],
+  );
+
   useEffect(() => {
     // 1. Initial check: Supabase or Local Auth
     supabase.auth
@@ -109,30 +154,49 @@ export function AuthModal() {
       .then(({ data: { session } }) => {
         const activeUser = session?.user ?? getLocalAuthUser() ?? null;
         setUser(activeUser);
+        if (activeUser?.email) {
+          triggerCloudRestore(activeUser.email);
+        }
       })
       .catch(() => {
-        setUser(getLocalAuthUser() ?? null);
+        const activeUser = getLocalAuthUser() ?? null;
+        setUser(activeUser);
+        if (activeUser?.email) {
+          triggerCloudRestore(activeUser.email);
+        }
       });
 
     // 2. Supabase auth change
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? getLocalAuthUser() ?? null);
+      const activeUser = session?.user ?? getLocalAuthUser() ?? null;
+      setUser(activeUser);
+      if (activeUser?.email) {
+        triggerCloudRestore(activeUser.email);
+      }
     });
 
     // 3. Local Auth change
     const handleLocalAuthChanged = (e: Event) => {
       const customEv = e as CustomEvent<LocalAuthUser | null>;
       setUser(customEv.detail);
+      if (customEv.detail?.email) {
+        triggerCloudRestore(customEv.detail.email);
+      }
     };
     window.addEventListener("local_auth_changed", handleLocalAuthChanged);
+
+    // 4. External trigger to open modal (e.g. from sidebar or quick buttons)
+    const handleOpenAuth = () => setIsOpen(true);
+    window.addEventListener("open_auth_modal", handleOpenAuth);
 
     return () => {
       subscription.unsubscribe();
       window.removeEventListener("local_auth_changed", handleLocalAuthChanged);
+      window.removeEventListener("open_auth_modal", handleOpenAuth);
     };
-  }, []);
+  }, [triggerCloudRestore]);
 
   const fetchUserHistory = useCallback(async () => {
     if (!user) return;
@@ -450,6 +514,46 @@ export function AuthModal() {
                   : "Standard account. To get an ad-free VIP membership, an admin can exempt your email."}
               </div>
             )}
+
+            {/* بطاقة المزامنة السحابية للحساب مع زر المزامنة */}
+            <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/30 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <Cloud className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    {lang === "ar" ? "المزامنة السحابية للحساب" : "Cloud Account Sync"}
+                    <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-full">
+                      {lang === "ar" ? "مفعلة ☁️" : "Active"}
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {lang === "ar"
+                      ? "إعداداتك وقواميسك ومساحات عملك متصلة ومحفوظة سحابياً."
+                      : "Your settings, glossaries, and workspaces are backed up."}
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={handleManualCloudSync}
+                disabled={isSyncingCloud}
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs font-bold px-2.5 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 gap-1 shrink-0 shadow-xs"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? "animate-spin" : ""}`} />
+                <span>
+                  {lang === "ar"
+                    ? isSyncingCloud
+                      ? "جاري الحفظ..."
+                      : "مزامنة الآن"
+                    : isSyncingCloud
+                      ? "Syncing..."
+                      : "Sync Now"}
+                </span>
+              </Button>
+            </div>
 
             {/* Admin Ad-Free Management Section (Exclusively for kareemelgohary01@gmail.com) */}
             {isSuperAdmin && (

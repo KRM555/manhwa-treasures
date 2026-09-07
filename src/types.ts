@@ -25,9 +25,10 @@ export interface TranslationMemoryEntry {
 export interface GeminiModelMeta {
   id: string;
   label: string;
-  badge: "stable" | "preview";
+  badge: "stable" | "preview" | "vip";
   description?: string;
   isAvailable?: boolean;
+  isVipOnly?: boolean;
 }
 
 export interface CustomTag {
@@ -57,4 +58,6 @@ export interface ImageItem {
   data?: ExtractedItem[];
 }
 
-export type ProcessingMode = "ocr_and_translate" | "ocr_only";
+export type BubbleData = ExtractedItem;
+export type ImageData = ImageItem;
+export type TagRule = CustomTag;

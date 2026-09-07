@@ -403,6 +403,7 @@ export function useAdStatus() {
     currentUserEmail,
     isAdmin,
     isAdFree,
+    isVip: isAdFree,
     adFreeEmails,
     addEmail: addAdFreeEmailAsync,
     removeEmail: removeAdFreeEmailAsync,

@@ -11,6 +11,11 @@ import { SplitBubbleModal } from "@/components/SplitBubbleModal";
 import { WorkspaceTabBar } from "@/components/WorkspaceTabBar";
 import { DriveImportModal } from "@/components/DriveImportModal";
 import { NavigationSidebar } from "@/components/NavigationSidebar";
+import { GoogleDocsExportModal } from "@/components/GoogleDocsExportModal";
+import { AIProofreaderModal } from "@/components/AIProofreaderModal";
+import { VipPerksModal } from "@/components/VipPerksModal";
+import { SharedDocumentViewerModal } from "@/components/SharedDocumentViewerModal";
+import { downloadPhotoshopJsx } from "@/lib/photoshopScript";
 import {
   loadInitialWorkspaces,
   saveWorkspacesToStorage,
@@ -25,12 +30,19 @@ import {
   fetchSupportedGeminiModels,
 } from "@/lib/models";
 import { formatGlossaryForPrompt } from "@/lib/glossaryUtils";
-import { lookupTranslationMemory, saveToTranslationMemory } from "@/lib/translationMemory";
+import {
+  lookupTranslationMemory,
+  saveToTranslationMemory,
+  getTranslationMemory,
+} from "@/lib/translationMemory";
 import { parseJsonFromResponse } from "@/lib/geminiParser";
 import { formatTextWithRules, buildScriptText } from "@/lib/exportUtils";
 import { compareImageFilenames, extractPageNumber } from "@/lib/zipUtils";
 import { exportChapterToDocx } from "@/utils/docxExport";
 import { parseTagRulesFromText, exportTagsToText } from "@/lib/tagUtils";
+import { useAdStatus } from "@/lib/adManager";
+import { saveUserCloudData, CLOUD_SYNC_RESTORED_EVENT, UserCloudData } from "@/lib/userSync";
+import { Switch } from "@/components/ui/switch";
 import { GeminiModelMeta, GlossaryItem } from "@/types";
 import { TranslationConfig, MangaPageItem } from "@/types/manga";
 import {
@@ -71,6 +83,8 @@ import {
   KeyRound,
   Cpu,
   GripVertical,
+  Crown,
+  Palette,
   Pencil,
   Check,
   Zap,
@@ -81,6 +95,7 @@ import {
   Square,
   Split,
   CloudDownload,
+  Cloud,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -244,6 +259,78 @@ export default function Index() {
     return saved ? JSON.parse(saved) : DEFAULT_TAGS;
   });
 
+  const [tagsEnabled, setTagsEnabled] = useState<boolean>(() => {
+    return localStorage.getItem("manga_tags_enabled") !== "false";
+  });
+
+  const { currentUserEmail, isVip, isAdFree } = useAdStatus();
+  const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
+  const [showGoogleDocsModal, setShowGoogleDocsModal] = useState<boolean>(false);
+  const [showProofreaderModal, setShowProofreaderModal] = useState<boolean>(false);
+  const [showVipPerksModal, setShowVipPerksModal] = useState<boolean>(false);
+
+  // Listen for global modal open events
+  useEffect(() => {
+    const handleOpenProofreader = () => setShowProofreaderModal(true);
+    const handleOpenVipPerks = () => setShowVipPerksModal(true);
+    const handleOpenGoogleDocs = () => setShowGoogleDocsModal(true);
+
+    window.addEventListener("open_proofreader_modal", handleOpenProofreader);
+    window.addEventListener("open_vip_perks_modal", handleOpenVipPerks);
+    window.addEventListener("open_googledocs_modal", handleOpenGoogleDocs);
+
+    return () => {
+      window.removeEventListener("open_proofreader_modal", handleOpenProofreader);
+      window.removeEventListener("open_vip_perks_modal", handleOpenVipPerks);
+      window.removeEventListener("open_googledocs_modal", handleOpenGoogleDocs);
+    };
+  }, []);
+
+  // Check for shared team glossary in URL
+  useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const teamGlossaryParam = urlParams.get("team_glossary");
+      if (teamGlossaryParam) {
+        const parsed: GlossaryItem[] = JSON.parse(decodeURIComponent(teamGlossaryParam));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          toast.info(
+            lang === "ar"
+              ? `تم اكتشاف قاموس فريق مشترك (${parsed.length} مصطلح). هل ترغب في استيراده إلى مشروعك؟`
+              : `Found team shared glossary (${parsed.length} terms). Import to project?`,
+            {
+              duration: 12000,
+              action: {
+                label: lang === "ar" ? "استيراد القاموس 📥" : "Import 📥",
+                onClick: () => {
+                  const existingKeys = new Set(
+                    glossary.map((g) => g.original.toLowerCase().trim()),
+                  );
+                  const merged = [...glossary];
+                  let added = 0;
+                  parsed.forEach((item) => {
+                    if (item.original && !existingKeys.has(item.original.toLowerCase().trim())) {
+                      merged.push(item);
+                      added++;
+                    }
+                  });
+                  setGlossary(merged);
+                  toast.success(
+                    lang === "ar"
+                      ? `تم استيراد ${added} مصطلح بنجاح إلى قاموسك! 👥`
+                      : `Imported ${added} terms to your glossary! 👥`,
+                  );
+                },
+              },
+            },
+          );
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const [glossary, setGlossary] = useState<GlossaryItem[]>(() => {
     const saved = localStorage.getItem("manga_glossary");
     return saved ? JSON.parse(saved) : [];
@@ -348,6 +435,85 @@ export default function Index() {
   useEffect(() => {
     localStorage.setItem("custom_manga_tags", JSON.stringify(tags));
   }, [tags]);
+
+  useEffect(() => {
+    localStorage.setItem("manga_tags_enabled", String(tagsEnabled));
+  }, [tagsEnabled]);
+
+  // Listen for Cloud Sync restorations (e.g. on login or multi-device restore)
+  useEffect(() => {
+    const handleCloudSync = (e: Event) => {
+      const customEv = e as CustomEvent<UserCloudData>;
+      const data = customEv.detail;
+      if (!data) return;
+
+      if (data.settings) {
+        if (Array.isArray(data.settings.tags)) setTags(data.settings.tags);
+        if (typeof data.settings.tagsEnabled === "boolean")
+          setTagsEnabled(data.settings.tagsEnabled);
+        if (Array.isArray(data.settings.glossary)) setGlossary(data.settings.glossary);
+        if (data.settings.config) setConfig(data.settings.config);
+        if (data.settings.selectedModel) setSelectedModel(data.settings.selectedModel);
+        if (typeof data.settings.extendedThinking === "boolean")
+          setExtendedThinking(data.settings.extendedThinking);
+        if (data.settings.processingMode) setProcessingMode(data.settings.processingMode as any);
+        if (typeof data.settings.startPageNumber === "number")
+          setStartPageNumber(data.settings.startPageNumber);
+        if (typeof data.settings.useFilenamePageNumber === "boolean")
+          setUseFilenamePageNumber(data.settings.useFilenamePageNumber);
+      }
+      if (Array.isArray(data.workspaces) && data.workspaces.length > 0) {
+        setWorkspaces(data.workspaces);
+        if (data.activeTabId) setActiveTabId(data.activeTabId);
+      }
+    };
+
+    window.addEventListener(CLOUD_SYNC_RESTORED_EVENT, handleCloudSync);
+    return () => {
+      window.removeEventListener(CLOUD_SYNC_RESTORED_EVENT, handleCloudSync);
+    };
+  }, []);
+
+  // Debounced auto-save to cloud account whenever user settings or workspaces change
+  useEffect(() => {
+    if (!currentUserEmail) return;
+
+    const timer = setTimeout(() => {
+      saveUserCloudData(currentUserEmail, {
+        settings: {
+          tags,
+          tagsEnabled,
+          glossary,
+          translationMemory: getTranslationMemory(),
+          config,
+          selectedModel,
+          extendedThinking,
+          processingMode,
+          startPageNumber,
+          useFilenamePageNumber,
+        },
+        workspaces,
+        activeTabId,
+      }).catch((err) => {
+        console.debug("[UserSync] Auto-save error note:", err);
+      });
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [
+    currentUserEmail,
+    tags,
+    tagsEnabled,
+    glossary,
+    config,
+    selectedModel,
+    extendedThinking,
+    processingMode,
+    startPageNumber,
+    useFilenamePageNumber,
+    workspaces,
+    activeTabId,
+  ]);
 
   useEffect(() => {
     localStorage.setItem("manga_glossary", JSON.stringify(glossary));
@@ -867,7 +1033,48 @@ export default function Index() {
   };
 
   const formatItemText = (text: string, categoryVal: string): string => {
-    return formatTextWithRules(text, categoryVal, tags);
+    return formatTextWithRules(text, categoryVal, tags, tagsEnabled);
+  };
+
+  const handleManualCloudSync = async () => {
+    if (!currentUserEmail) {
+      toast.info(
+        lang === "ar"
+          ? "يرجى تسجيل الدخول أولاً لتفعيل المزامنة السحابية وحفظ إعداداتك ومساحة عملك."
+          : "Please sign in first to enable cloud sync.",
+      );
+      return;
+    }
+    setIsSyncingCloud(true);
+    try {
+      const success = await saveUserCloudData(currentUserEmail, {
+        settings: {
+          tags,
+          tagsEnabled,
+          glossary,
+          translationMemory: getTranslationMemory(),
+          config,
+          selectedModel,
+          extendedThinking,
+          processingMode,
+          startPageNumber,
+          useFilenamePageNumber,
+        },
+        workspaces,
+        activeTabId,
+      });
+      if (success) {
+        toast.success(
+          lang === "ar"
+            ? "تمت مزامنة وحفظ جميع إعداداتك ومساحات عملك سحابياً بنجاح! ☁️"
+            : "All settings and workspaces synced to cloud successfully! ☁️",
+        );
+      } else {
+        toast.error(lang === "ar" ? "تعذر الاتصال بالسيرفر للمزامنة" : "Cloud sync failed");
+      }
+    } finally {
+      setIsSyncingCloud(false);
+    }
   };
 
   const handleMoveItem = (index: number, direction: "up" | "down") => {
@@ -1120,6 +1327,11 @@ The "category" field in your JSON output must be exactly the value string (not t
 Active tags (use only these):
 ${tagDefinitions}`;
 
+    const cleanOutputRule = !tagsEnabled
+      ? `\nCRITICAL MANDATE — NO TAGS / CLEAN PLAIN TEXT:
+The user has turned OFF tag formatting. Do NOT wrap translatedText or originalText in any prefix, suffix, brackets, or labels. Return pure, natural plain text only.\n`
+      : "";
+
     const coordinatesInstruction = `Estimate bubble bounding box percentages and confidence for each text bubble/region on the image:
 - topPercent: vertical position from top of page (0 to 100, number)
 - leftPercent: horizontal position from left of page (0 to 100, number)
@@ -1134,6 +1346,7 @@ ${sfxPromptRule}
 ${orientationRule}
 ${coordinatesInstruction}
 ${tagInstructions}
+${cleanOutputRule}
 ${reAnalysisPrompt}
 Return ONLY a valid JSON array of objects with keys: id, originalText, translatedText, category, topPercent, leftPercent, widthPercent, heightPercent, confidence.
 The category field must be one of: (${tagValues}).`
@@ -1143,6 +1356,7 @@ ${sfxPromptRule}
 ${orientationRule}
 ${coordinatesInstruction}
 ${tagInstructions}
+${cleanOutputRule}
 ${reAnalysisPrompt}
 Translate all extracted texts to ${config.targetLanguage === "ar" ? "Arabic (العربية)" : "English"}.
 ${glossaryPrompt}
@@ -1481,6 +1695,48 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
     }
   };
 
+  const handleExportPhotoshopJsx = (scope: "current" | "all" = "all") => {
+    if (!isVip) {
+      toast.info(
+        lang === "ar"
+          ? "تصدير سكريبت الفوتوشوب الآلي (.jsx) ميزة حصرية لأعضاء VIP 👑 لمساعدة المحرر والمبيض (Typer) على إنشاء طبقات النصوص فوراً في Photoshop!"
+          : "Photoshop JSX Script Export is a VIP exclusive feature 👑",
+        {
+          action: {
+            label: lang === "ar" ? "ترقية VIP 👑" : "Upgrade to VIP",
+            onClick: () => setShowVipPerksModal(true),
+          },
+        },
+      );
+      return;
+    }
+
+    const targetImages = scope === "current" && activeImage ? [activeImage] : images;
+    if (targetImages.length === 0) {
+      toast.error(
+        lang === "ar" ? "لا توجد صور لتصدير سكريبت لها" : "No images to export script for",
+      );
+      return;
+    }
+
+    const pagesData = targetImages.map((img) => ({
+      name: img.name,
+      bubbles: resultsMap[img.id] || [],
+    }));
+
+    const fileName =
+      scope === "current" && activeImage
+        ? `${activeImage.name.replace(/\.[^/.]+$/, "")}_photoshop.jsx`
+        : "chapter_photoshop_script.jsx";
+
+    downloadPhotoshopJsx(pagesData, fileName, currentUserEmail || "مترجم المانهوا");
+    toast.success(
+      lang === "ar"
+        ? "تم تحميل سكريبت الفوتوشوب (.jsx) بنجاح! يمكن للمبيض تشغيله من: File > Scripts > Browse في Photoshop 🎨"
+        : "Photoshop JSX Script downloaded successfully! Run from File > Scripts > Browse in Photoshop 🎨",
+    );
+  };
+
   const handleAnalyzeAll = async (ocrOnly = false): Promise<void> => {
     if (images.length === 0) {
       toast.error(t.selectImageFirst);
@@ -1492,20 +1748,57 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
       return;
     }
 
+    // Inform free users about Turbo batch processing for full chapters
+    if (!isVip && images.length > 8) {
+      toast.info(
+        lang === "ar"
+          ? "💡 تلميح: أعضاء VIP 👑 يتمتعون بوضع التوربو السريع (Turbo 3x) لمعالجة فصول كاملة (30-70 صفحة) بالتوازي!"
+          : "💡 Tip: VIP members enjoy 3x Turbo parallel batch processing for entire chapters!",
+        { duration: 6000 },
+      );
+    }
+
     setIsAnalyzing(true);
     const newMap = { ...resultsMap };
     let successCount = 0;
     let lastError = "";
 
-    for (let i = 0; i < images.length; i++) {
-      const img = images[i];
-      setCurrentProcessingMsg(t.processingImage(i + 1, images.length));
-      const { data: res, error } = await processGeminiRequest(img!, ocrOnly);
-      if (res && res.length > 0) {
-        newMap[img!.id] = res;
-        successCount++;
-      } else if (error) {
-        lastError = error;
+    const isTurbo = isVip;
+    const CHUNK_SIZE = isTurbo ? 3 : 1;
+
+    for (let i = 0; i < images.length; i += CHUNK_SIZE) {
+      const chunk = images.slice(i, i + CHUNK_SIZE);
+      const startIdx = i + 1;
+      const endIdx = Math.min(i + CHUNK_SIZE, images.length);
+
+      setCurrentProcessingMsg(
+        isTurbo
+          ? lang === "ar"
+            ? `⚡ وضع التوربو VIP: معالجة الصفحات (${startIdx}-${endIdx} من ${images.length}) بالتوازي...`
+            : `⚡ VIP Turbo: Processing pages ${startIdx}-${endIdx} of ${images.length} in parallel...`
+          : t.processingImage(startIdx, images.length),
+      );
+
+      const chunkResults = await Promise.all(
+        chunk.map(async (img) => {
+          const res = await processGeminiRequest(img, ocrOnly);
+          return { img, res };
+        }),
+      );
+
+      let chunkFailed = false;
+      for (const { img, res } of chunkResults) {
+        if (res.data && res.data.length > 0) {
+          newMap[img.id] = res.data;
+          successCount++;
+        } else if (res.error) {
+          lastError = res.error;
+          chunkFailed = true;
+        }
+      }
+
+      // If in non-turbo mode and an error happened, stop to allow user review
+      if (!isTurbo && chunkFailed) {
         break;
       }
     }
@@ -1514,7 +1807,13 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
     setIsAnalyzing(false);
 
     if (successCount > 0) {
-      toast.success(t.processedImages(successCount));
+      toast.success(
+        isTurbo
+          ? lang === "ar"
+            ? `⚡ تم إكمال معالجة ${successCount} صفحة بنجاح بوضع التوربو السريع 👑`
+            : `⚡ Completed ${successCount} pages with VIP Turbo mode 👑`
+          : t.processedImages(successCount),
+      );
       setView("results");
     } else {
       toast.error(`❌ ${lastError || t.extractionFailed}`, { duration: 8000 });
@@ -1536,6 +1835,7 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
       resultsMap,
       textType,
       tags,
+      tagsEnabled,
       scope,
       currentImageId: activeImage?.id,
       startPageNumber,
@@ -1614,6 +1914,7 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
           startPageNumber,
           useFilenamePageNumber,
           tags,
+          tagsEnabled,
           textType,
           extractSFX: config.extractSFX,
         },
@@ -1668,15 +1969,89 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
             extendedThinking={extendedThinking}
             onExtendedThinkingChange={setExtendedThinking}
             brandName={BRAND_NAME}
+            tagsEnabled={tagsEnabled}
+            onToggleTagsEnabled={setTagsEnabled}
+            onManualSync={handleManualCloudSync}
+            isSyncing={isSyncingCloud}
           />
 
           {/* زر تسجيل الدخول والبروفايل */}
           <AuthModal />
 
+          {/* زر المزامنة السحابية السريع والمباشر في الشريط العلوي */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (!currentUserEmail) {
+                window.dispatchEvent(new CustomEvent("open_auth_modal"));
+                toast.info(
+                  lang === "ar"
+                    ? "يرجى تسجيل الدخول أولاً لحفظ واسترجاع إعداداتك ومشاريعك سحابياً ☁️"
+                    : "Please sign in first to sync settings to the cloud ☁️",
+                );
+              } else {
+                handleManualCloudSync();
+              }
+            }}
+            disabled={isSyncingCloud}
+            className={`h-9 px-2.5 gap-1.5 text-xs font-bold rounded-xl border transition-all ${
+              currentUserEmail
+                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 shadow-xs"
+                : "border-border/60 hover:bg-muted text-muted-foreground"
+            }`}
+            title={
+              currentUserEmail
+                ? lang === "ar"
+                  ? `مزامنة الإعدادات السحابية الآن (${currentUserEmail})`
+                  : `Sync with cloud now (${currentUserEmail})`
+                : lang === "ar"
+                  ? "تسجيل الدخول لتفعيل المزامنة السحابية"
+                  : "Sign in to enable cloud sync"
+            }
+          >
+            {isSyncingCloud ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-500" />
+            ) : (
+              <Cloud
+                className={`w-3.5 h-3.5 ${currentUserEmail ? "text-emerald-500" : "text-muted-foreground"}`}
+              />
+            )}
+            <span className="hidden sm:inline">
+              {isSyncingCloud
+                ? lang === "ar"
+                  ? "جاري المزامنة..."
+                  : "Syncing..."
+                : lang === "ar"
+                  ? "مزامنة سحابية"
+                  : "Cloud Sync"}
+            </span>
+          </Button>
+
           {/* اختيار النموذج (Model Selector) */}
           <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl px-2 h-9">
             <Cpu className="w-4 h-4 text-orange-500 shrink-0" />
-            <Select value={selectedModel} onValueChange={setSelectedModel}>
+            <Select
+              value={selectedModel}
+              onValueChange={(val) => {
+                const targetModel = availableModels.find((m) => m.id === val);
+                if (targetModel?.isVipOnly && !isVip) {
+                  toast.info(
+                    lang === "ar"
+                      ? `نموذج (${targetModel.label}) متاح حصرياً لأعضاء باقة VIP 👑 للحصول على أقصى دقة ترجمة وفهم سياقي`
+                      : `${targetModel.label} is exclusive to VIP members 👑`,
+                    {
+                      action: {
+                        label: lang === "ar" ? "ترقية VIP 👑" : "Upgrade",
+                        onClick: () => setShowVipPerksModal(true),
+                      },
+                    },
+                  );
+                  return;
+                }
+                setSelectedModel(val);
+              }}
+            >
               <SelectTrigger className="h-7 text-xs font-bold border-0 bg-transparent focus:ring-0 w-48 sm:w-52">
                 <SelectValue placeholder={t.selectModel} />
               </SelectTrigger>
@@ -1684,15 +2059,26 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
                 {availableModels.map((m) => (
                   <SelectItem key={m.id} value={m.id} className="text-xs font-medium">
                     <div className="flex items-center justify-between gap-2.5 w-full">
-                      <span>{m.label}</span>
+                      <span className="flex items-center gap-1">
+                        {m.badge === "vip" && (
+                          <Crown className="w-3 h-3 text-amber-500 fill-amber-500 inline" />
+                        )}
+                        {m.label}
+                      </span>
                       <span
                         className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                          m.badge === "stable"
-                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                            : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                          m.badge === "vip"
+                            ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black"
+                            : m.badge === "stable"
+                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                              : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                         }`}
                       >
-                        {m.badge === "stable" ? t.modelStable : t.modelPreview}
+                        {m.badge === "vip"
+                          ? "VIP 👑"
+                          : m.badge === "stable"
+                            ? t.modelStable
+                            : t.modelPreview}
                       </span>
                     </div>
                   </SelectItem>
@@ -1848,6 +2234,44 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
           </DialogHeader>
 
           <div className="space-y-4 py-2">
+            {/* سويتش تفعيل / تعطيل العلامات في الترجمة */}
+            <div className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-card shadow-xs">
+              <div className="space-y-0.5 pe-4">
+                <div className="text-xs font-bold text-foreground flex items-center gap-2">
+                  <span>
+                    {lang === "ar"
+                      ? "تفعيل نظام العلامات والوسوم في الترجمة"
+                      : "Enable Tag Formatting in Translation"}
+                  </span>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                      tagsEnabled
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {tagsEnabled
+                      ? lang === "ar"
+                        ? "مفعّل"
+                        : "Active"
+                      : lang === "ar"
+                        ? "معطّل (ترجمة نظيفة)"
+                        : "Disabled (Clean Text)"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {lang === "ar"
+                    ? "عند إيقاف هذا الخيار، ستظهر وتُصدّر الترجمة نظيفة تماماً بدون أي علامات أو تصنيفات للمبيضين."
+                    : "When turned off, translations are extracted and exported cleanly without any tag prefixes or labels."}
+                </p>
+              </div>
+              <Switch
+                checked={tagsEnabled}
+                onCheckedChange={setTagsEnabled}
+                aria-label="Toggle Tags"
+              />
+            </div>
+
             <p className="text-[11px] text-muted-foreground bg-muted/30 p-3 rounded-lg border border-border/50">
               {t.tagHint}
             </p>
@@ -2387,10 +2811,21 @@ ST: همس`}
                       </Button>
                       <Button
                         onClick={() => handleAnalyzeAll(false)}
-                        className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-md"
+                        className={`${
+                          isVip
+                            ? "bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-700 hover:to-orange-800"
+                            : "bg-zinc-800 hover:bg-zinc-700"
+                        } text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-md`}
                       >
-                        <Play className="w-4 h-4 text-orange-400" /> {t.analyzeAll} ({images.length}
-                        )
+                        <Play className="w-4 h-4 text-amber-300" />
+                        <span>
+                          {t.analyzeAll} ({images.length})
+                        </span>
+                        {isVip && (
+                          <span className="bg-amber-400 text-amber-950 font-black text-[10px] px-1.5 py-0.5 rounded-full shadow-xs">
+                            ⚡ توربو 3x
+                          </span>
+                        )}
                       </Button>
                     </div>
                   )}
@@ -2427,6 +2862,38 @@ ST: همس`}
                 <kbd className="hidden md:inline-block text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border/80 font-mono text-muted-foreground">
                   Ctrl+H
                 </kbd>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowProofreaderModal(true)}
+                className="h-8 text-xs font-bold gap-1.5 rounded-xl border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 shadow-xs"
+                title={
+                  lang === "ar"
+                    ? "التدقيق اللغوي والأدبي بالذكاء الاصطناعي (VIP)"
+                    : "AI Literary Proofreader (VIP)"
+                }
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>{lang === "ar" ? "التدقيق الأدبي" : "Proofreader"}</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black">
+                  VIP 👑
+                </span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowGoogleDocsModal(true)}
+                className="h-8 text-xs font-bold gap-1.5 rounded-xl border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 shadow-xs"
+                title={lang === "ar" ? "مستند Google Docs ورابط سحابي" : "Google Docs & Cloud Link"}
+              >
+                <FileText className="w-3.5 h-3.5 text-blue-500" />
+                <span>Google Docs</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-600 text-white font-bold">
+                  VIP 👑
+                </span>
               </Button>
             </div>
 
@@ -2556,6 +3023,37 @@ ST: همس`}
                     className="text-xs cursor-pointer font-medium text-orange-600 dark:text-orange-400"
                   >
                     {t.exportDocxAll}
+                  </DropdownMenuItem>
+                  <div className="h-[1px] bg-border/60 my-1"></div>
+                  <DropdownMenuItem
+                    onClick={() => setShowGoogleDocsModal(true)}
+                    className="text-xs cursor-pointer font-bold text-blue-600 dark:text-blue-400 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>
+                        {lang === "ar"
+                          ? "تصدير Google Docs ورابط سحابي"
+                          : "Google Docs & Cloud Link"}
+                      </span>
+                    </div>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-600 text-white font-bold">
+                      VIP 👑
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleExportPhotoshopJsx("all")}
+                    className="text-xs cursor-pointer font-bold text-purple-600 dark:text-purple-400 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Palette className="w-3.5 h-3.5" />
+                      <span>
+                        {lang === "ar" ? "سكريبت فوتوشوب Photoshop JSX" : "Photoshop JSX Script"}
+                      </span>
+                    </div>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold">
+                      VIP 👑
+                    </span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -3021,7 +3519,7 @@ ST: همس`}
                         variant="ghost"
                         size="sm"
                         onClick={() =>
-                          handleCopyText(formatTextWithRules(item.translatedText, item.category))
+                          handleCopyText(formatItemText(item.translatedText, item.category))
                         }
                         className="h-7 px-2 text-[11px] gap-1 font-bold text-muted-foreground hover:text-orange-500"
                         title={t.copyBubbleWithTags}
@@ -3200,6 +3698,47 @@ ST: همس`}
         onOpenChange={setShowDriveModal}
         onImagesImported={handleDriveImagesImported}
       />
+
+      {/* Google Docs Export Modal with user email & cloud link */}
+      <GoogleDocsExportModal
+        open={showGoogleDocsModal}
+        onOpenChange={setShowGoogleDocsModal}
+        isVip={isVip}
+        currentUserEmail={currentUserEmail}
+        images={images as any}
+        resultsMap={resultsMap as any}
+        tags={tags}
+        tagsEnabled={tagsEnabled}
+        startPageNumber={startPageNumber}
+        useFilenamePageNumber={useFilenamePageNumber}
+      />
+
+      {/* AI Literary Proofreader Modal */}
+      <AIProofreaderModal
+        open={showProofreaderModal}
+        onOpenChange={setShowProofreaderModal}
+        isVip={isVip}
+        apiKey={cleanApiKey}
+        model={selectedModel}
+        activeImage={activeImage as any}
+        images={images as any}
+        resultsMap={resultsMap as any}
+        onApplyPolishedBubbles={(updatedMap) => {
+          setResultsMap((prev) => ({ ...prev, ...(updatedMap as any) }));
+        }}
+      />
+
+      {/* VIP Perks Overview Modal */}
+      <VipPerksModal
+        open={showVipPerksModal}
+        onOpenChange={setShowVipPerksModal}
+        isVip={isVip}
+        currentUserEmail={currentUserEmail}
+        onUpgradeToVip={() => window.dispatchEvent(new CustomEvent("open_auth_modal"))}
+      />
+
+      {/* Shared Document Viewer Modal (reads ?view_doc=...) */}
+      <SharedDocumentViewerModal />
     </div>
   );
 }

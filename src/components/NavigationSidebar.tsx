@@ -13,6 +13,10 @@ import {
   BrainCircuit,
   X,
   Info,
+  Cloud,
+  RefreshCw,
+  LogIn,
+  Crown,
 } from "lucide-react";
 import {
   Sheet,
@@ -25,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { useI18n } from "@/lib/language";
 import { PrivacyPolicyModal } from "./PrivacyPolicyModal";
 import { useAdStatus } from "@/lib/adManager";
@@ -39,6 +44,10 @@ interface NavigationSidebarProps {
   extendedThinking: boolean;
   onExtendedThinkingChange: (checked: boolean) => void;
   brandName: string;
+  tagsEnabled?: boolean;
+  onToggleTagsEnabled?: (enabled: boolean) => void;
+  onManualSync?: () => Promise<void>;
+  isSyncing?: boolean;
 }
 
 export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
@@ -51,9 +60,13 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   extendedThinking,
   onExtendedThinkingChange,
   brandName,
+  tagsEnabled = true,
+  onToggleTagsEnabled,
+  onManualSync,
+  isSyncing = false,
 }) => {
   const { t, lang } = useI18n();
-  const { isAdFree, currentUserEmail } = useAdStatus();
+  const { isAdFree, isVip, currentUserEmail } = useAdStatus();
   const [isOpen, setIsOpen] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
@@ -211,31 +224,225 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 />
               </button>
 
-              {/* إعدادات العلامات */}
+              {/* إعدادات العلامات مع زر وسويتش مخصص */}
+              <div className="flex items-center gap-1.5 p-1 rounded-xl border border-border/40 hover:bg-muted/40 transition-colors">
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    onOpenTagSettings();
+                  }}
+                  className="flex-1 flex items-center justify-between p-2 rounded-lg text-xs font-bold text-foreground hover:bg-muted/60 transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                      <Settings2 className="w-4 h-4" />
+                    </div>
+                    <div className="text-start">
+                      <div className="flex items-center gap-2">
+                        <span>{t.tagSettings}</span>
+                        {!tagsEnabled && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-normal">
+                            {lang === "ar" ? "معطلة" : "Off"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] font-normal text-muted-foreground">
+                        {lang === "ar"
+                          ? tagsEnabled
+                            ? "تخصيص وسوم المبيضين (SFX / حوار)"
+                            : "العلامات معطلة في الترجمة"
+                          : tagsEnabled
+                            ? "Typer custom tags & prefixes"
+                            : "Tags disabled in translation"}
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight
+                    className={`w-4 h-4 text-muted-foreground ${lang === "ar" ? "rotate-180" : ""}`}
+                  />
+                </button>
+
+                {onToggleTagsEnabled && (
+                  <div
+                    className="px-2 py-1 flex items-center gap-1.5 border-s border-border/50"
+                    title={
+                      lang === "ar"
+                        ? tagsEnabled
+                          ? "إيقاف العلامات (ترجمة نظيفة بدون أقواس)"
+                          : "تفعيل العلامات والوسوم"
+                        : tagsEnabled
+                          ? "Disable tags in translation"
+                          : "Enable tags"
+                    }
+                  >
+                    <Switch
+                      checked={tagsEnabled}
+                      onCheckedChange={onToggleTagsEnabled}
+                      aria-label={t.tagSettings}
+                    />
+                  </div>
+                )}
+              </div>
+              {/* بطاقة مميزات باقة VIP الاحترافية */}
               <button
                 onClick={() => {
                   setIsOpen(false);
-                  onOpenTagSettings();
+                  window.dispatchEvent(new CustomEvent("open_vip_perks_modal"));
                 }}
-                className="w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold text-foreground hover:bg-muted border border-border/40 transition-colors"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold text-foreground bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-transparent hover:from-amber-500/25 border border-amber-500/30 transition-all shadow-xs"
               >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-lg">
-                    <Settings2 className="w-4 h-4" />
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1 rounded-lg bg-amber-500 text-white">
+                    <Crown className="w-3.5 h-3.5 fill-current" />
                   </div>
                   <div className="text-start">
-                    <div>{t.tagSettings}</div>
+                    <div className="text-xs font-bold">
+                      {lang === "ar" ? "باقة ومميزات VIP" : "VIP Pro Membership"}
+                    </div>
                     <div className="text-[10px] font-normal text-muted-foreground">
                       {lang === "ar"
-                        ? "تخصيص وسوم المبيضين (SFX / حوار)"
-                        : "Typer custom tags & prefixes"}
+                        ? "تدقيق أدبي، توربو، Google Docs، والمزيد"
+                        : "AI Proofreader, Turbo, Docs"}
                     </div>
                   </div>
                 </div>
-                <ChevronRight
-                  className={`w-4 h-4 text-muted-foreground ${lang === "ar" ? "rotate-180" : ""}`}
-                />
+                <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold text-[10px] px-2 py-0.5">
+                  {isVip
+                    ? lang === "ar"
+                      ? "مفعل 👑"
+                      : "Active"
+                    : lang === "ar"
+                      ? "استعراض 👑"
+                      : "Perks"}
+                </Badge>
               </button>
+
+              {/* أداة التدقيق الأدبي بالذكاء الاصطناعي */}
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  window.dispatchEvent(new CustomEvent("open_proofreader_modal"));
+                }}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-medium text-foreground hover:bg-muted transition-colors border border-border/60"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="text-start">
+                    <div className="text-xs font-bold">
+                      {lang === "ar" ? "التدقيق والتحسين الأدبي" : "AI Proofreader & Polisher"}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {lang === "ar" ? "صياغة فصحى راقية للمانهوا" : "Literary Arabic styling"}
+                    </div>
+                  </div>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-bold border-amber-500/40 text-amber-600 dark:text-amber-400"
+                >
+                  VIP ✨
+                </Badge>
+              </button>
+            </div>
+
+            {/* بطاقة المزامنة السحابية للحساب - تظهر دائماً للمستخدم */}
+            <div
+              className={`p-3 rounded-xl border space-y-2.5 transition-all ${
+                currentUserEmail
+                  ? "bg-emerald-500/10 border-emerald-500/30"
+                  : "bg-muted/40 border-border/70"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`p-1.5 rounded-lg ${
+                      currentUserEmail
+                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    <Cloud className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-foreground">
+                        {lang === "ar" ? "المزامنة السحابية" : "Cloud Sync"}
+                      </span>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
+                          currentUserEmail
+                            ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                            : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                        }`}
+                      >
+                        {currentUserEmail
+                          ? lang === "ar"
+                            ? "متصل ☁️"
+                            : "Connected"
+                          : lang === "ar"
+                            ? "غير مسجل"
+                            : "Not logged in"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {currentUserEmail && onManualSync && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onManualSync}
+                    disabled={isSyncing}
+                    className="h-6 px-2 text-[10px] gap-1 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isSyncing ? "animate-spin" : ""}`} />
+                    <span>
+                      {lang === "ar"
+                        ? isSyncing
+                          ? "جاري الحفظ..."
+                          : "مزامنة الآن"
+                        : isSyncing
+                          ? "Syncing..."
+                          : "Sync Now"}
+                    </span>
+                  </Button>
+                )}
+              </div>
+
+              {currentUserEmail ? (
+                <p className="text-[10px] text-muted-foreground leading-tight">
+                  {lang === "ar"
+                    ? `إعداداتك وقواميسك وذاكرة الترجمة ومساحة عملك متزامنة مع حسابك (${currentUserEmail}).`
+                    : `Your settings, glossaries, TM, and workspaces are synced with ${currentUserEmail}.`}
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[10px] text-muted-foreground leading-tight">
+                    {lang === "ar"
+                      ? "سجّل دخولك لحفظ واسترجاع القاموس والعلامات ومساحات العمل تلقائياً عبر جميع أجهزتك."
+                      : "Sign in to automatically sync and restore your glossaries, tags, and workspaces across all your devices."}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsOpen(false);
+                      window.dispatchEvent(new CustomEvent("open_auth_modal"));
+                    }}
+                    className="w-full h-7 text-xs font-bold gap-1.5 border-orange-500/40 bg-orange-500/10 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>
+                      {lang === "ar"
+                        ? "تسجيل الدخول لتفعيل المزامنة"
+                        : "Sign In to Enable Cloud Sync"}
+                    </span>
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* إعدادات الذكاء الاصطناعي المتقدمة */}
@@ -244,17 +451,39 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 <div className="flex items-center gap-2">
                   <BrainCircuit className="w-4 h-4 text-orange-500" />
                   <span className="text-xs font-bold text-foreground">Extended Thinking</span>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-bold border-amber-500/40 text-amber-600 dark:text-amber-400"
+                  >
+                    VIP 👑
+                  </Badge>
                 </div>
                 <Checkbox
                   id="drawer-extended-thinking"
                   checked={extendedThinking}
-                  onCheckedChange={(c) => onExtendedThinkingChange(c === true)}
+                  onCheckedChange={(c) => {
+                    if (c === true && !isVip) {
+                      toast.info(
+                        lang === "ar"
+                          ? "خاصية التفكير العميق (Extended Thinking) ميزة حصرية لأعضاء VIP 👑 للحصول على أقصى دقة استدلال"
+                          : "Extended Thinking is an exclusive VIP feature 👑",
+                        {
+                          action: {
+                            label: lang === "ar" ? "استعراض VIP" : "View VIP",
+                            onClick: () => window.dispatchEvent(new CustomEvent("open_auth_modal")),
+                          },
+                        },
+                      );
+                      return;
+                    }
+                    onExtendedThinkingChange(c === true);
+                  }}
                 />
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 {lang === "ar"
-                  ? "تفعيل تفكير Gemini العميق لسياق الأحداث المعقدة وترجمة المصطلحات الصعبة بدقة أعلى."
-                  : "Enables deep reasoning for nuanced context and tricky dialogue."}
+                  ? "تفعيل استدلال Gemini العميق لفهم السياق الدرامي والمصطلحات المعقدة (حصري VIP)."
+                  : "Enables deep reasoning for nuanced context and tricky dialogue (VIP perk)."}
               </p>
             </div>
 

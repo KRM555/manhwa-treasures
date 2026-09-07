@@ -9,6 +9,7 @@ import {
   Check,
   AlertCircle,
   FileImage,
+  Crown,
 } from "lucide-react";
 import { WorkspaceTab } from "@/types/workspace";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useI18n } from "@/lib/language";
+import { useAdStatus } from "@/lib/adManager";
 import { toast } from "sonner";
 
 interface WorkspaceTabBarProps {
@@ -45,6 +47,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
   isAnalyzing = false,
 }) => {
   const { t, lang } = useI18n();
+  const { isVip } = useAdStatus();
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [tempTabName, setTempTabName] = useState("");
   const [tabToClose, setTabToClose] = useState<WorkspaceTab | null>(null);
@@ -215,12 +218,29 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={onCreateTab}
+          onClick={() => {
+            if (!isVip && workspaces.length >= 2) {
+              toast.info(
+                lang === "ar"
+                  ? "تنبيه: الحساب المجاني يملك نافذتي عمل كحد أقصى. فعّل عضوية VIP لفتح عدد غير محدود من مساحات العمل والفصول ومزامنتها سحابياً 👑"
+                  : "Free accounts can open up to 2 tabs. Activate VIP for unlimited cloud workspaces 👑",
+                {
+                  action: {
+                    label: lang === "ar" ? "استعراض VIP" : "View VIP",
+                    onClick: () => window.dispatchEvent(new CustomEvent("open_auth_modal")),
+                  },
+                },
+              );
+              return;
+            }
+            onCreateTab();
+          }}
           title={t.newWorkspaceTab}
           className="h-8 text-xs font-bold gap-1 rounded-xl px-3 border-dashed border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 shrink-0 shadow-2xs"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>{t.newWorkspaceTab}</span>
+          {!isVip && workspaces.length >= 2 && <Crown className="w-3 h-3 text-amber-500 ml-1" />}
         </Button>
       </div>
 

@@ -5,8 +5,10 @@ export function formatTextWithRules(
   text: string,
   categoryVal: string,
   tags: TagRule[] = [],
+  tagsEnabled: boolean = true,
 ): string {
   const cleanText = (text || "").trim();
+  if (!tagsEnabled) return cleanText;
   const rule = tags.find((t) => t.value === categoryVal);
   if (!rule) return cleanText;
   return `${rule.prefix}${cleanText}${rule.suffix}`;
@@ -17,6 +19,7 @@ export interface ScriptExportOptions {
   resultsMap: Record<string, ExtractedText[]>;
   textType: "original" | "translated";
   tags?: TagRule[];
+  tagsEnabled?: boolean;
   scope: "current" | "all";
   currentImageId?: string;
   startPageNumber?: number;
@@ -30,6 +33,7 @@ export function buildScriptText(options: ScriptExportOptions): string {
     resultsMap,
     textType,
     tags = [],
+    tagsEnabled = true,
     scope,
     currentImageId,
     startPageNumber = 1,
@@ -71,7 +75,8 @@ export function buildScriptText(options: ScriptExportOptions): string {
         fullOutput += `=== Page ${pageNumberToDisplay}: ${img.name} ===\n\n`;
         validItems.forEach((item) => {
           const contentToExport = textType === "original" ? item.originalText : item.translatedText;
-          fullOutput += formatTextWithRules(contentToExport, item.category, tags) + "\n\n";
+          fullOutput +=
+            formatTextWithRules(contentToExport, item.category, tags, tagsEnabled) + "\n\n";
         });
         fullOutput += "\n";
       }

@@ -122,3 +122,14 @@ export function deleteTranslationMemoryEntry(id: string): void {
     console.error("Failed to delete TM entry:", err);
   }
 }
+
+/**
+ * Replaces entire Translation Memory with new list (used during Cloud Sync).
+ */
+export function setTranslationMemory(memory: TranslationMemoryEntry[]): void {
+  try {
+    localStorage.setItem(TM_STORAGE_KEY, JSON.stringify(memory));
+  } catch (err) {
+    console.error("Failed to set translation memory:", err);
+  }
+}
