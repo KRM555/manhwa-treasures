@@ -259,7 +259,7 @@ export const TranslationViewer: React.FC<TranslationViewerProps> = ({
             <div className="flex items-center justify-between pb-2 border-b border-border/50">
               <h3 className="text-xs font-bold text-orange-500">{t.tvHowToUse}</h3>
               <a
-                href="https://discord.gg/nuaqTHvx"
+                href="https://discord.gg/SrY9cDVs"
                 target="_blank"
                 rel="noopener noreferrer"
                 title={t.tvDiscordTitle}

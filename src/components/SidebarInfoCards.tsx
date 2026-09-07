@@ -71,7 +71,7 @@ export const SidebarInfoCards: React.FC = () => {
           </div>
 
           <a
-            href="https://discord.gg/nuaqTHvx"
+            href="https://discord.gg/SrY9cDVs"
             target="_blank"
             rel="noopener noreferrer"
             className="w-full flex items-center justify-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-md transition-all hover:scale-[1.01]"

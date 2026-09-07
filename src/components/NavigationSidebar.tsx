@@ -300,7 +300,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
 
               {/* رابط مجتمع ديسكورد */}
               <a
-                href="https://discord.gg/2cM9392e62"
+                href="https://discord.gg/SrY9cDVs"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-medium text-foreground hover:bg-muted transition-colors"
