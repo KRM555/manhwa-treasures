@@ -45,6 +45,21 @@ export async function fetchUserCloudData(email: string): Promise<UserCloudData |
   }
 }
 
+export function sanitizeWorkspacesForCloudSync(
+  workspaces?: WorkspaceTab[],
+): WorkspaceTab[] | undefined {
+  if (!Array.isArray(workspaces)) return workspaces;
+  return workspaces.map((tab) => ({
+    ...tab,
+    images: (tab.images || []).map((img) => ({
+      id: img.id,
+      name: img.name,
+      // Strip massive base64 or blob URLs to keep payload tiny (<50KB instead of 50MB)
+      url: img.url && !img.url.startsWith("data:") && !img.url.startsWith("blob:") ? img.url : "",
+    })),
+  }));
+}
+
 export async function saveUserCloudData(
   email: string,
   payload: {
@@ -57,18 +72,23 @@ export async function saveUserCloudData(
   if (!cleanEmail || !cleanEmail.includes("@")) return false;
 
   try {
+    const cleanWorkspaces = sanitizeWorkspacesForCloudSync(payload.workspaces);
     const res = await fetch("/api/user-sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email: cleanEmail,
         settings: payload.settings,
-        workspaces: payload.workspaces,
+        workspaces: cleanWorkspaces,
         activeTabId: payload.activeTabId,
       }),
     });
 
-    if (!res.ok) return false;
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      console.error("[UserSync] Server responded with error status:", res.status, errText);
+      return false;
+    }
     const json = await res.json();
     return Boolean(json.success);
   } catch (err) {
@@ -120,7 +140,34 @@ export function applyCloudDataToLocalStorage(cloudData: UserCloudData): void {
     }
 
     if (Array.isArray(workspaces) && workspaces.length > 0) {
-      localStorage.setItem("manga_studio_workspaces_v2", JSON.stringify(workspaces));
+      let existingLocalWorkspaces: WorkspaceTab[] = [];
+      try {
+        const raw = localStorage.getItem("manga_studio_workspaces_v2");
+        if (raw) existingLocalWorkspaces = JSON.parse(raw);
+      } catch {
+        existingLocalWorkspaces = [];
+      }
+
+      // Merge: keep local images if available
+      const mergedWorkspaces = workspaces.map((cloudTab) => {
+        const localTab = existingLocalWorkspaces.find((lt) => lt.id === cloudTab.id);
+        if (!localTab) return cloudTab;
+        const mergedImages = (cloudTab.images || []).map((cloudImg) => {
+          const localImg = (localTab.images || []).find(
+            (li) => li.id === cloudImg.id || li.name === cloudImg.name,
+          );
+          return {
+            ...cloudImg,
+            url: cloudImg.url || localImg?.url || "",
+          };
+        });
+        return {
+          ...cloudTab,
+          images: mergedImages,
+        };
+      });
+
+      localStorage.setItem("manga_studio_workspaces_v2", JSON.stringify(mergedWorkspaces));
       if (activeTabId) {
         localStorage.setItem("manga_studio_active_tab_v2", activeTabId);
       }
@@ -211,7 +258,7 @@ export function gatherLocalDataForCloud(): {
       startPageNumber,
       useFilenamePageNumber,
     },
-    workspaces,
+    workspaces: sanitizeWorkspacesForCloudSync(workspaces) || [],
     activeTabId,
   };
 }

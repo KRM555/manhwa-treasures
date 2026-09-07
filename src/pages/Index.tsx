@@ -1365,8 +1365,9 @@ Return ONLY a valid JSON array of objects with keys: id, originalText, translate
 The category field must be one of: (${tagValues}).`;
 
     const apiModelIds = MODEL_FALLBACK_MAP[selectedModel] || [
+      "gemini-3.8-flash",
+      "gemini-3.7-flash",
       "gemini-3.6-flash",
-      "gemini-2.5-flash",
     ];
     const RETRYABLE_STATUS = new Set([429, 500, 503]);
     const MAX_RETRIES = 2;
@@ -1408,7 +1409,7 @@ The category field must be one of: (${tagValues}).`;
                 ...(extendedThinking && canThink
                   ? {
                       thinkingConfig: {
-                        thinkingLevel: "high",
+                        thinkingBudget: 2048,
                       },
                     }
                   : {}),
@@ -1427,6 +1428,20 @@ The category field must be one of: (${tagValues}).`;
                 data: null,
                 error: `[Google ${response.status}] ${msg}`,
               };
+            }
+
+            // If Pro model is busy/overloaded (429/503) or not found (404), switch to 3.8-flash immediately
+            const isProBusy =
+              apiModel.includes("pro") &&
+              (response.status === 429 || response.status === 503 || response.status === 404);
+            if (isProBusy) {
+              toast.info(
+                lang === "ar"
+                  ? `سيرفرات ${apiModel} مشغولة حالياً لدى جوجل؛ جاري التحويل التلقائي فوراً إلى Gemini 3.8 Flash فائق الذكاء ⚡`
+                  : `Model ${apiModel} is busy; automatically switching to Gemini 3.8 Flash ⚡`,
+                { duration: 5000 },
+              );
+              break;
             }
 
             if (RETRYABLE_STATUS.has(response.status) && attempt < MAX_RETRIES) {
@@ -1527,8 +1542,9 @@ ${glossaryPrompt}
 Output ONLY the translated text directly without any quotes, annotations, or explanations.`;
 
       const apiModelIds = MODEL_FALLBACK_MAP[selectedModel] || [
+        "gemini-3.8-flash",
+        "gemini-3.7-flash",
         "gemini-3.6-flash",
-        "gemini-2.5-flash",
       ];
       let newTranslation = "";
       let succeeded = false;
@@ -1545,7 +1561,7 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
               generationConfig: {
                 temperature: 0.2,
                 ...(extendedThinking && canThink
-                  ? { thinkingConfig: { thinkingLevel: "high" } }
+                  ? { thinkingConfig: { thinkingBudget: 2048 } }
                   : {}),
               },
             }),
@@ -3033,25 +3049,11 @@ ST: همس`}
                       <FileText className="w-3.5 h-3.5" />
                       <span>
                         {lang === "ar"
-                          ? "تصدير Google Docs ورابط سحابي"
-                          : "Google Docs & Cloud Link"}
+                          ? "تصدير Google Docs ومشاركة الرابط"
+                          : "Google Docs & Direct Link"}
                       </span>
                     </div>
                     <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-600 text-white font-bold">
-                      VIP 👑
-                    </span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleExportPhotoshopJsx("all")}
-                    className="text-xs cursor-pointer font-bold text-purple-600 dark:text-purple-400 flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <Palette className="w-3.5 h-3.5" />
-                      <span>
-                        {lang === "ar" ? "سكريبت فوتوشوب Photoshop JSX" : "Photoshop JSX Script"}
-                      </span>
-                    </div>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold">
                       VIP 👑
                     </span>
                   </DropdownMenuItem>

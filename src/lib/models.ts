@@ -2,87 +2,71 @@ import { GeminiModelMeta } from "@/types";
 
 export const DEFAULT_GEMINI_MODELS: GeminiModelMeta[] = [
   {
-    id: "gemini-3.1-pro-preview",
-    label: "Gemini 3.1 Pro",
-    badge: "vip",
-    isVipOnly: true,
-    description: "الأعلى ذكاءً وسياقاً للترجمة المعقدة والأدبية (حصري VIP 👑)",
-  },
-  {
     id: "gemini-3.8-flash",
-    label: "Gemini 3.8 Flash",
-    badge: "preview",
-    description: "سرعة خارقة مع فهم بصري فائق للمانهوا",
+    label: "Gemini 3.8 Flash (الموصى به ⚡)",
+    badge: "vip",
+    isVipOnly: false,
+    description: "الأحدث والأسرع مع أعلى دقة بصرية في استخراج وترجمة المانهوا",
   },
   {
     id: "gemini-3.7-flash",
-    label: "Gemini 3.7 Flash",
-    badge: "preview",
-    description: "متعدد الوسائط متوازن بين السرعة والدقة",
+    label: "Gemini 3.7 Flash (تفكير عميق 🧠)",
+    badge: "vip",
+    isVipOnly: true,
+    description: "استدلال منطقي وسياقي متطور لفهم الحبكات والحوارات المعقدة (حصري VIP 👑)",
   },
   {
     id: "gemini-3.6-flash",
     label: "Gemini 3.6 Flash",
     badge: "stable",
-    description: "النموذج القياسي الأكثر استقراراً واعتمادية",
+    description: "النموذج القياسي الأكثر استقراراً واعتمادية لمختلف الاستخدامات",
   },
   {
     id: "gemini-3.5-flash-lite",
     label: "Gemini 3.5 Flash-Lite",
     badge: "stable",
-    description: "فائق السرعة واقتصادي لاستهلاك الرموز",
+    description: "فائق السرعة واقتصادي لاستهلاك الرموز في الفصول الطويلة",
   },
   {
-    id: "gemini-2.5-flash",
-    label: "Gemini 2.5 Flash",
-    badge: "stable",
-    description: "نموذج احتياطي فائق السرعة والموثوقية",
-  },
-  {
-    id: "gemini-2.5-pro",
-    label: "Gemini 2.5 Pro",
+    id: "gemini-3.1-pro-preview",
+    label: "Gemini 3.1 Pro",
     badge: "vip",
     isVipOnly: true,
-    description: "نموذج مستقر للاستدلال والترجمة (حصري VIP 👑)",
+    description: "أعلى قدرة بلاغية وأدبية (مع تحويل تلقائي ذكي عند انشغال السيرفر) (حصري VIP 👑)",
   },
 ];
 
-// Fallback hierarchy per model
+// Fallback hierarchy per model using only active, tested 200 OK models
 export const MODEL_FALLBACK_MAP: Record<string, string[]> = {
   "gemini-3.1-pro-preview": [
     "gemini-3.1-pro-preview",
     "gemini-3.8-flash",
+    "gemini-3.7-flash",
     "gemini-3.6-flash",
-    "gemini-2.5-flash",
   ],
   "gemini-3.8-flash": [
     "gemini-3.8-flash",
     "gemini-3.7-flash",
     "gemini-3.6-flash",
-    "gemini-2.5-flash",
+    "gemini-3.5-flash-lite",
   ],
   "gemini-3.7-flash": [
     "gemini-3.7-flash",
     "gemini-3.8-flash",
     "gemini-3.6-flash",
-    "gemini-2.5-flash",
+    "gemini-3.5-flash-lite",
   ],
-  "gemini-3.6-flash": ["gemini-3.6-flash", "gemini-2.5-flash"],
-  "gemini-3.5-flash-lite": ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-2.5-flash"],
-  "gemini-2.5-flash": ["gemini-2.5-flash", "gemini-2.5-pro"],
-  "gemini-2.5-pro": ["gemini-2.5-pro", "gemini-2.5-flash"],
+  "gemini-3.6-flash": ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite"],
+  "gemini-3.5-flash-lite": ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash"],
 };
 
 /**
- * Checks if a specific model ID supports Gemini 3 thinking config.
- * When falling back to 2.5 or older models, thinkingConfig MUST be omitted
- * to avoid HTTP 400 parameter errors.
+ * Checks if a specific model ID supports Gemini thinking config.
  */
 export function doesModelSupportThinking(modelId: string): boolean {
   if (!modelId) return false;
   const clean = modelId.toLowerCase();
-  // Only Gemini 3 models support thinkingConfig
-  return clean.startsWith("gemini-3.") && !clean.includes("flash-lite");
+  return clean.includes("3.7") || clean.includes("3.8") || clean.includes("3.1-pro");
 }
 
 /**
