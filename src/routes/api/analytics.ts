@@ -11,14 +11,22 @@ interface SiteStats {
   lastUpdated: string;
 }
 
-// Memory map of active sessions: sessionId -> lastSeen timestamp (ms)
-const activeSessions = new Map<string, number>();
+export interface ActiveSessionInfo {
+  sessionId: string;
+  lastSeen: number;
+  email?: string | null;
+  isVip?: boolean;
+  platform?: string;
+}
+
+// Memory map of active sessions: sessionId -> ActiveSessionInfo
+const activeSessions = new Map<string, ActiveSessionInfo>();
 
 // Clean sessions inactive for > 45 seconds
 function cleanupActiveSessions(): void {
   const now = Date.now();
-  for (const [sessionId, lastSeen] of activeSessions.entries()) {
-    if (now - lastSeen > 45000) {
+  for (const [sessionId, session] of activeSessions.entries()) {
+    if (now - session.lastSeen > 45000) {
       activeSessions.delete(sessionId);
     }
   }
@@ -96,13 +104,20 @@ export const Route = createFileRoute("/api/analytics")({
       GET: async () => {
         cleanupActiveSessions();
         const stats = readStats();
-        // Online users count is at least 1 (the requester)
-        const onlineCount = Math.max(activeSessions.size, 1);
+        const activeList = Array.from(activeSessions.values()).map((s) => ({
+          sessionId: s.sessionId,
+          email: s.email || null,
+          isVip: !!s.isVip,
+          platform: s.platform || "desktop",
+          lastSeen: s.lastSeen,
+        }));
+        const onlineCount = Math.max(activeList.length, 1);
 
         return Response.json(
           {
             success: true,
             onlineUsers: onlineCount,
+            activeUsers: activeList,
             totalVisits: stats.totalVisits,
             todayVisits: stats.todayVisits,
             lastUpdated: stats.lastUpdated,
@@ -116,6 +131,9 @@ export const Route = createFileRoute("/api/analytics")({
           const body = (await request.json()) as {
             action?: "visit" | "heartbeat" | "leave";
             sessionId?: string;
+            email?: string | null;
+            isVip?: boolean;
+            platform?: string;
           };
 
           const sessionId = body.sessionId || "anon_" + Math.random().toString(36).substring(2, 9);
@@ -129,8 +147,15 @@ export const Route = createFileRoute("/api/analytics")({
             );
           }
 
-          // Register heartbeat
-          activeSessions.set(sessionId, now);
+          // Register or update session info
+          const existing = activeSessions.get(sessionId);
+          activeSessions.set(sessionId, {
+            sessionId,
+            lastSeen: now,
+            email: body.email !== undefined ? body.email : existing?.email || null,
+            isVip: body.isVip !== undefined ? body.isVip : existing?.isVip || false,
+            platform: body.platform || existing?.platform || "desktop",
+          });
 
           const stats = readStats();
 

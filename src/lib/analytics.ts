@@ -15,11 +15,45 @@ function getOrCreateSessionId(): string {
   return sessionId;
 }
 
+export interface ActiveUserInfo {
+  sessionId: string;
+  email?: string | null;
+  isVip?: boolean;
+  platform?: string;
+  lastSeen?: number;
+}
+
 export interface SiteAnalyticsData {
   onlineUsers: number;
+  activeUsers: ActiveUserInfo[];
   totalVisits: number;
   todayVisits: number;
   lastUpdated?: string;
+}
+
+function getCurrentVisitorInfo() {
+  let email: string | null = null;
+  let isVip = false;
+  try {
+    const raw = localStorage.getItem("manga_local_auth_user");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.email) email = parsed.email.trim().toLowerCase();
+    }
+    isVip =
+      localStorage.getItem("manga_vip_activated") === "true" ||
+      document.documentElement.getAttribute("data-vip") === "true";
+  } catch {
+    // ignore
+  }
+  return {
+    email,
+    isVip,
+    platform:
+      typeof navigator !== "undefined" && navigator.userAgent.includes("Mobile")
+        ? "mobile"
+        : "desktop",
+  };
 }
 
 /**
@@ -36,12 +70,14 @@ export function initVisitorTracking(): void {
   const sendVisit = async () => {
     try {
       const isNewVisit = !alreadyLoggedVisit;
+      const info = getCurrentVisitorInfo();
       await fetch("/api/analytics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: isNewVisit ? "visit" : "heartbeat",
           sessionId,
+          ...info,
         }),
       });
       if (isNewVisit) {
@@ -56,10 +92,15 @@ export function initVisitorTracking(): void {
 
   // 2. Periodic heartbeat every 20 seconds
   const heartbeatInterval = window.setInterval(() => {
+    const info = getCurrentVisitorInfo();
     fetch("/api/analytics", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "heartbeat", sessionId }),
+      body: JSON.stringify({
+        action: "heartbeat",
+        sessionId,
+        ...info,
+      }),
     }).catch(() => {});
   }, 20000);
 
@@ -88,11 +129,23 @@ export function initVisitorTracking(): void {
 
     presenceChannel.subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
+        const info = getCurrentVisitorInfo();
         await presenceChannel.track({
           onlineAt: new Date().toISOString(),
-          platform: navigator.userAgent.includes("Mobile") ? "mobile" : "desktop",
+          ...info,
         });
       }
+    });
+
+    // If auth changes, update presence track
+    window.addEventListener("storage", () => {
+      const info = getCurrentVisitorInfo();
+      presenceChannel
+        .track({
+          onlineAt: new Date().toISOString(),
+          ...info,
+        })
+        .catch(() => {});
     });
   } catch {
     // Supabase presence fallback
@@ -107,11 +160,12 @@ export function initVisitorTracking(): void {
 }
 
 /**
- * Hook exclusively for Admin to view real-time visits and online count
+ * Hook exclusively for Admin to view real-time visits and online count with user identities
  */
 export function useAdminAnalytics(isAdmin: boolean) {
   const [stats, setStats] = useState<SiteAnalyticsData>({
     onlineUsers: 1,
+    activeUsers: [],
     totalVisits: 0,
     todayVisits: 0,
   });
@@ -125,13 +179,17 @@ export function useAdminAnalytics(isAdmin: boolean) {
       if (res.ok) {
         const data = await res.json();
         if (data && data.success) {
-          setStats((prev) => ({
-            ...prev,
-            onlineUsers: Math.max(data.onlineUsers || 1, prev.onlineUsers),
-            totalVisits: data.totalVisits || prev.totalVisits,
-            todayVisits: data.todayVisits || prev.todayVisits,
-            lastUpdated: data.lastUpdated,
-          }));
+          setStats((prev) => {
+            const apiUsers: ActiveUserInfo[] = data.activeUsers || [];
+            return {
+              ...prev,
+              onlineUsers: Math.max(data.onlineUsers || 1, apiUsers.length, 1),
+              activeUsers: apiUsers,
+              totalVisits: data.totalVisits || prev.totalVisits,
+              todayVisits: data.todayVisits || prev.todayVisits,
+              lastUpdated: data.lastUpdated,
+            };
+          });
         }
       }
     } catch (err) {
@@ -157,12 +215,41 @@ export function useAdminAnalytics(isAdmin: boolean) {
       presenceChannel.on("presence", { event: "sync" }, () => {
         try {
           const state = presenceChannel.presenceState();
-          const supabaseOnlineCount = Object.keys(state).length;
-          if (supabaseOnlineCount > 0) {
-            setStats((prev) => ({
-              ...prev,
-              onlineUsers: Math.max(supabaseOnlineCount, 1),
-            }));
+          const presenceList: ActiveUserInfo[] = [];
+          for (const key of Object.keys(state)) {
+            const presences = state[key] as any[];
+            if (presences && presences.length > 0) {
+              const p = presences[0];
+              presenceList.push({
+                sessionId: key,
+                email: p.email || null,
+                isVip: !!p.isVip,
+                platform: p.platform || "desktop",
+              });
+            }
+          }
+
+          if (presenceList.length > 0) {
+            setStats((prev) => {
+              // Merge presence users with server users
+              const userMap = new Map<string, ActiveUserInfo>();
+              for (const u of prev.activeUsers) {
+                userMap.set(u.sessionId, u);
+              }
+              for (const p of presenceList) {
+                const existing = userMap.get(p.sessionId);
+                userMap.set(p.sessionId, {
+                  ...existing,
+                  ...p,
+                });
+              }
+              const merged = Array.from(userMap.values());
+              return {
+                ...prev,
+                onlineUsers: Math.max(merged.length, 1),
+                activeUsers: merged,
+              };
+            });
           }
         } catch {
           // ignore

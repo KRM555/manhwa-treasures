@@ -7,7 +7,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Eye, Users, RefreshCw, Activity, CalendarDays } from "lucide-react";
+import {
+  Eye,
+  Users,
+  RefreshCw,
+  Activity,
+  CalendarDays,
+  Crown,
+  Smartphone,
+  Monitor,
+  User,
+  ShieldCheck,
+} from "lucide-react";
+import { PRIMARY_ADMIN_EMAIL } from "@/lib/adManager";
 
 interface AdminStatsBadgeProps {
   isAdmin: boolean;
@@ -59,7 +71,7 @@ export const AdminStatsBadge: React.FC<AdminStatsBadgeProps> = ({ isAdmin }) => 
 
       <DropdownMenuContent
         align="end"
-        className={`w-72 p-3.5 rounded-2xl border-emerald-500/30 bg-background/95 backdrop-blur-md shadow-lg ${
+        className={`w-80 p-3.5 rounded-2xl border-emerald-500/30 bg-background/95 backdrop-blur-md shadow-xl ${
           lang === "ar" ? "dir-rtl text-right" : "dir-ltr text-left"
         }`}
       >
@@ -85,6 +97,7 @@ export const AdminStatsBadge: React.FC<AdminStatsBadgeProps> = ({ isAdmin }) => 
           </Button>
         </div>
 
+        {/* Counter Tiles */}
         <div className="grid grid-cols-2 gap-2 mt-3">
           {/* المتصلون الآن */}
           <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 col-span-2 flex items-center justify-between">
@@ -125,7 +138,81 @@ export const AdminStatsBadge: React.FC<AdminStatsBadgeProps> = ({ isAdmin }) => 
           </div>
         </div>
 
-        <p className="text-[10px] text-muted-foreground text-center mt-3 pt-2 border-t border-border/50">
+        {/* قائمة المتصلين المتواجدين الآن وتحديد هويتهم */}
+        <div className="mt-3 pt-2.5 border-t border-border/50">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+              <Users className="w-3 h-3 text-emerald-500" />
+              {lang === "ar" ? "قائمة المتصلين حالياً" : "Active Visitors"}
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              {stats.activeUsers.length > 0 ? stats.activeUsers.length : stats.onlineUsers}{" "}
+              {lang === "ar" ? "نشط" : "active"}
+            </span>
+          </div>
+
+          <div className="max-h-36 overflow-y-auto space-y-1.5 pr-0.5">
+            {stats.activeUsers.length > 0 ? (
+              stats.activeUsers.map((u, idx) => {
+                const isAdminUser = u.email === PRIMARY_ADMIN_EMAIL;
+                return (
+                  <div
+                    key={u.sessionId || idx}
+                    className="p-1.5 rounded-lg bg-muted/40 border border-border/40 flex items-center justify-between text-xs"
+                  >
+                    <div className="flex items-center gap-1.5 overflow-hidden">
+                      {/* Status indicator */}
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+
+                      {/* Device Icon */}
+                      {u.platform === "mobile" ? (
+                        <Smartphone className="w-3 h-3 text-muted-foreground shrink-0" />
+                      ) : (
+                        <Monitor className="w-3 h-3 text-muted-foreground shrink-0" />
+                      )}
+
+                      {/* Name or Email */}
+                      {u.email ? (
+                        <span className="truncate font-semibold text-[11px] text-foreground">
+                          {u.email}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                          <User className="w-2.5 h-2.5" />
+                          {lang === "ar"
+                            ? `زائر (${u.sessionId.substring(0, 5)})`
+                            : `Guest (${u.sessionId.substring(0, 5)})`}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Badges */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isAdminUser && (
+                        <span className="text-[9px] bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold px-1.5 py-0.2 rounded flex items-center gap-0.5">
+                          <ShieldCheck className="w-2.5 h-2.5" />
+                          {lang === "ar" ? "المدير" : "Admin"}
+                        </span>
+                      )}
+                      {u.isVip && !isAdminUser && (
+                        <span className="text-[9px] bg-amber-500/15 text-amber-600 font-bold px-1 py-0.2 rounded flex items-center gap-0.5">
+                          <Crown className="w-2.5 h-2.5" />
+                          VIP
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-2 text-[11px] text-muted-foreground">
+                {lang === "ar" ? "جاري جلب قائمة المتصلين..." : "Fetching active users..."}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <p className="text-[10px] text-muted-foreground text-center mt-2.5 pt-2 border-t border-border/50">
           {lang === "ar"
             ? "يتم التحديث تلقائياً بشكل لحظي عبر Supabase و Vercel"
             : "Real-time updates via Supabase & server tracking"}

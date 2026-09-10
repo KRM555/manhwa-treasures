@@ -27,6 +27,9 @@ import {
   Users,
   Activity,
   RefreshCw,
+  Smartphone,
+  Monitor,
+  User as UserIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/language";
@@ -526,6 +529,82 @@ export function AuthModal() {
                     <span className="text-base font-extrabold text-foreground mt-0.5">
                       {analyticsStats.totalVisits.toLocaleString()}
                     </span>
+                  </div>
+                </div>
+
+                {/* قائمة المتصلين حالياً */}
+                <div className="mt-2.5 pt-2 border-t border-emerald-500/20">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
+                      <Users className="w-3 h-3 text-emerald-500" />
+                      <span>
+                        {lang === "ar"
+                          ? "قائمة المتصلين حالياً (هويات الزوار)"
+                          : "Active Visitors List"}
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {analyticsStats.activeUsers.length > 0
+                        ? analyticsStats.activeUsers.length
+                        : analyticsStats.onlineUsers}{" "}
+                      {lang === "ar" ? "متصل" : "online"}
+                    </span>
+                  </div>
+
+                  <div className="max-h-32 overflow-y-auto space-y-1 pr-0.5">
+                    {analyticsStats.activeUsers.length > 0 ? (
+                      analyticsStats.activeUsers.map((u, idx) => {
+                        const isSelfAdmin = u.email === PRIMARY_ADMIN_EMAIL;
+                        return (
+                          <div
+                            key={u.sessionId || idx}
+                            className="p-1.5 rounded-lg bg-background/90 border border-border/50 flex items-center justify-between text-xs"
+                          >
+                            <div className="flex items-center gap-1.5 overflow-hidden">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+                              {u.platform === "mobile" ? (
+                                <Smartphone className="w-3 h-3 text-muted-foreground shrink-0" />
+                              ) : (
+                                <Monitor className="w-3 h-3 text-muted-foreground shrink-0" />
+                              )}
+                              {u.email ? (
+                                <span className="truncate font-semibold text-[11px] text-foreground">
+                                  {u.email}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                  <UserIcon className="w-2.5 h-2.5" />
+                                  <span>
+                                    {lang === "ar"
+                                      ? `زائر (${u.sessionId.substring(0, 5)})`
+                                      : `Guest (${u.sessionId.substring(0, 5)})`}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              {isSelfAdmin && (
+                                <span className="text-[9px] bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold px-1.5 py-0.2 rounded flex items-center gap-0.5">
+                                  <ShieldCheck className="w-2.5 h-2.5" />
+                                  {lang === "ar" ? "أنت (المدير)" : "You (Admin)"}
+                                </span>
+                              )}
+                              {u.isVip && !isSelfAdmin && (
+                                <span className="text-[9px] bg-amber-500/15 text-amber-600 font-bold px-1 py-0.2 rounded flex items-center gap-0.5">
+                                  <Crown className="w-2.5 h-2.5" />
+                                  VIP
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-2 text-[10px] text-muted-foreground">
+                        {lang === "ar" ? "لا يوجد زوار آخرين حالياً" : "No other visitors online"}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
