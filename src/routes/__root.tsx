@@ -13,6 +13,8 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
 import { LanguageProvider } from "../lib/language";
+import { Analytics } from "@vercel/analytics/react";
+import { initVisitorTracking } from "../lib/analytics";
 
 function NotFoundComponent() {
   return (
@@ -202,12 +204,17 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    initVisitorTracking();
+  }, []);
+
   return (
     <LanguageProvider>
       <QueryClientProvider client={queryClient}>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
         <Toaster />
+        <Analytics />
       </QueryClientProvider>
     </LanguageProvider>
   );

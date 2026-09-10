@@ -1,4 +1,5 @@
 import { AuthModal } from "@/components/AuthModal";
+import { AdminStatsBadge } from "@/components/AdminStatsBadge";
 import { supabase } from "@/lib/supabase";
 import React, { useState, useEffect, useRef } from "react";
 import { UploadZone } from "@/components/UploadZone";
@@ -260,7 +261,7 @@ export default function Index() {
     return localStorage.getItem("manga_tags_enabled") !== "false";
   });
 
-  const { currentUserEmail, isVip, isAdFree } = useAdStatus();
+  const { currentUserEmail, isVip, isAdFree, isAdmin } = useAdStatus();
   const [showProofreaderModal, setShowProofreaderModal] = useState<boolean>(false);
   const [showVipPerksModal, setShowVipPerksModal] = useState<boolean>(false);
 
@@ -1933,6 +1934,9 @@ Output ONLY the translated text directly without any quotes, annotations, or exp
 
           {/* زر تسجيل الدخول والبروفايل */}
           <AuthModal />
+
+          {/* إحصائيات الموقع الحية لمدير النظام حصرياً */}
+          <AdminStatsBadge isAdmin={isAdmin} />
 
           {/* اختيار النموذج (Model Selector) */}
           <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl px-2 h-9">

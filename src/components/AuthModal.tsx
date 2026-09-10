@@ -23,9 +23,14 @@ import {
   Crown,
   CheckCircle2,
   Copy,
+  Eye,
+  Users,
+  Activity,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/language";
+import { useAdminAnalytics } from "@/lib/analytics";
 import {
   useAdStatus,
   getLocalAuthUser,
@@ -60,6 +65,12 @@ export function AuthModal() {
   const [newAdFreeEmail, setNewAdFreeEmail] = useState("");
   const [addingEmail, setAddingEmail] = useState(false);
   const [removingEmail, setRemovingEmail] = useState<string | null>(null);
+
+  const {
+    stats: analyticsStats,
+    loading: analyticsLoading,
+    refresh: refreshAnalytics,
+  } = useAdminAnalytics(isSuperAdmin);
 
   const handleAddAdFreeEmail = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -455,6 +466,68 @@ export function AuthModal() {
                 {lang === "ar"
                   ? "حسابك الحالي عادي. للحصول على عضوية VIP بدون إعلانات، يمكن للمدير إضافة بريدك لقائمة الإعفاء."
                   : "Standard account. To get an ad-free VIP membership, an admin can exempt your email."}
+              </div>
+            )}
+
+            {/* Live Analytics Section (Exclusively for kareemelgohary01@gmail.com) */}
+            {isSuperAdmin && (
+              <div className="p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/25 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    <Activity className="w-4 h-4" />
+                    <span>
+                      {lang === "ar" ? "إحصائيات الموقع المباشرة" : "Live Site Analytics"}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => refreshAnalytics()}
+                    disabled={analyticsLoading}
+                    className="h-6 px-2 text-[10px] gap-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-md font-bold"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${analyticsLoading ? "animate-spin" : ""}`} />
+                    <span>{lang === "ar" ? "تحديث" : "Refresh"}</span>
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  {/* المتصلون أونلاين */}
+                  <div className="p-2.5 rounded-lg bg-background/80 border border-emerald-500/20 text-center flex flex-col items-center justify-center">
+                    <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <span>{lang === "ar" ? "أونلاين" : "Online"}</span>
+                    </div>
+                    <span className="text-base font-extrabold text-foreground mt-0.5">
+                      {analyticsStats.onlineUsers}
+                    </span>
+                  </div>
+
+                  {/* زيارات اليوم */}
+                  <div className="p-2.5 rounded-lg bg-background/80 border border-border/60 text-center flex flex-col items-center justify-center">
+                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
+                      <Users className="w-3 h-3" />
+                      <span>{lang === "ar" ? "اليوم" : "Today"}</span>
+                    </div>
+                    <span className="text-base font-extrabold text-foreground mt-0.5">
+                      {analyticsStats.todayVisits.toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* إجمالي الزيارات */}
+                  <div className="p-2.5 rounded-lg bg-background/80 border border-border/60 text-center flex flex-col items-center justify-center">
+                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
+                      <Eye className="w-3 h-3" />
+                      <span>{lang === "ar" ? "الإجمالي" : "Total"}</span>
+                    </div>
+                    <span className="text-base font-extrabold text-foreground mt-0.5">
+                      {analyticsStats.totalVisits.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
 
