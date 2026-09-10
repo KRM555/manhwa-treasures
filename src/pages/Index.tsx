@@ -973,9 +973,7 @@ export default function Index() {
 
       const detectedPageNum = extractPageNumber(img.name);
       const pageNum =
-        useFilenamePageNumber && detectedPageNum !== null
-          ? detectedPageNum
-          : idx + startPageNumber;
+        useFilenamePageNumber && detectedPageNum !== null ? detectedPageNum : idx + startPageNumber;
 
       fullFormatted += `📄 [${lang === "ar" ? "الصفحة" : "Page"} ${pageNum}] - ${img.name}\n`;
       fullFormatted += `----------------------------------------------------\n`;
@@ -1017,9 +1015,7 @@ export default function Index() {
           : "Formatted translation text copied! Ready to paste into Google Docs (Ctrl+V) 📋",
       );
     } catch {
-      toast.error(
-        lang === "ar" ? "تعذر نسخ النص للحافظة" : "Failed to copy text to clipboard",
-      );
+      toast.error(lang === "ar" ? "تعذر نسخ النص للحافظة" : "Failed to copy text to clipboard");
     }
   };
 
@@ -2976,7 +2972,9 @@ ST: همس`}
                   >
                     <div className="flex items-center gap-1.5">
                       <Copy className="w-3.5 h-3.5" />
-                      <span>{lang === "ar" ? "نسخ نصوص الفصل كاملة" : "Copy All Chapter Text"}</span>
+                      <span>
+                        {lang === "ar" ? "نسخ نصوص الفصل كاملة" : "Copy All Chapter Text"}
+                      </span>
                     </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
